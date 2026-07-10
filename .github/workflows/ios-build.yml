@@ -1,16 +1,18 @@
 # Build a signed iOS .ipa for TestFlight on GitHub's macOS runner.
-# Blueprint §30 Phase 0 deliverable: "TestFlight build proving that one shot feels excellent."
+# Blueprint §30 Phase 0 deliverable: "a TestFlight build proving that one shot feels excellent."
 #
 # This runs on macOS (GitHub-hosted), which CAN compile iOS — unlike a Windows dev box.
-# It produces an .ipa artifact you can upload to TestFlight via Transporter or `xcrun altool`.
+# It produces an .ipa artifact you can upload to TestFlight via `xcrun altool` or Xcode Organizer.
 #
 # Secrets to set in repo Settings → Secrets and variables → Actions:
-#   BUILD_CERTIFICATE_BASE64  — base64 of your iOS Distribution .p12
-#   P12_PASSWORD              — password for that .p12
-#   BUILD_PROVISION_PROFILE_BASE64 — base64 of your provisioning profile (.mobileprovision)
-#   KEYCHAIN_PASSWORD         — any random string (used to create a temp keychain)
+#   BUILD_CERTIFICATE_BASE64       — base64 of your iOS Distribution .p12
+#   P12_PASSWORD                   — password for that .p12
+#   BUILD_PROVISION_PROFILE_BASE64 — base64 of your App Store provisioning profile (.mobileprovision)
+#   KEYCHAIN_PASSWORD              — any random string (creates a temp keychain)
+#   EXPORT_OPTIONS_PLIST           — base64 of an ExportOptions.plist (see build/ExportOptions.plist.example)
 #
-# See: https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development
+# When all signing secrets are present, the workflow builds a SIGNED .ipa.
+# When absent, it builds an unsigned .ipa (still a real compiled iOS binary).
 name: iOS Build (TestFlight)
 
 on:
@@ -23,6 +25,13 @@ jobs:
   build:
     name: Build .ipa
     runs-on: macos-14
+    # Expose secrets at the job level so step conditions can detect their presence.
+    env:
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      EXPORT_OPTIONS_PLIST: ${{ secrets.EXPORT_OPTIONS_PLIST }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,13 +51,20 @@ jobs:
       - name: Validate iOS project
         run: node test/validate-ios.cjs
 
-      # ---- Install signing certificate + provisioning profile ----
+      - name: Detect signing mode
+        id: signing
+        run: |
+          if [ -n "$BUILD_CERTIFICATE_BASE64" ] && [ -n "$BUILD_PROVISION_PROFILE_BASE64" ] && [ -n "$EXPORT_OPTIONS_PLIST" ]; then
+            echo "mode=signed" >> "$GITHUB_OUTPUT"
+            echo "::notice::Building SIGNED .ipa for TestFlight"
+          else
+            echo "mode=unsigned" >> "$GITHUB_OUTPUT"
+            echo "::notice::Signing secrets not set — building unsigned .ipa (still a real compiled iOS binary)"
+          fi
+
+      # ---- Install signing certificate + provisioning profile (only when secrets present) ----
       - name: Create keychain & import certificate
-        if: ${{ env.BUILD_CERTIFICATE_BASE64 != '' }}
-        env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        if: steps.signing.outputs.mode == 'signed'
         run: scripts/setup-signing.sh
         shell: bash
 
@@ -58,43 +74,55 @@ jobs:
       - name: Install CocoaPods
         run: gem install cocoapods
 
-      - name: Build app archive
-        id: archive
+      - name: Build app archive (signed)
+        if: steps.signing.outputs.mode == 'signed'
+        run: |
+          # Resolve the installed provisioning profile UUID for manual signing.
+          PP_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          PP_FILE=$(ls "$PP_DIR"/*.mobileprovision | head -1)
+          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_FILE")")
+          echo "Using provisioning profile UUID: $PP_UUID"
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PP_UUID" \
+            archive | xcpretty
+
+      - name: Build app archive (unsigned)
+        if: steps.signing.outputs.mode == 'unsigned'
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath build/App.xcarchive \
             -destination 'generic/platform=iOS' \
-            ${{ env.BUILD_CERTIFICATE_BASE64 != '' && 'CODE_SIGN_STYLE=Manual' || 'CODE_SIGNING_ALLOWED=NO' }} \
+            CODE_SIGNING_ALLOWED=NO \
             archive | xcpretty
-          # Always package the compiled .xcarchive so the binary is recoverable
-          # even without signing keys. (Blueprint §30: the archive IS the app.)
+
+      - name: Package .xcarchive
+        run: |
           cd build && zip -qry PULLPOP-xcarchive.zip App.xcarchive && cd ..
           ls -la build/PULLPOP-xcarchive.zip
 
       - name: Export signed .ipa
-        if: ${{ env.BUILD_CERTIFICATE_BASE64 != '' }}
-        env:
-          EXPORT_PLIST: ${{ secrets.EXPORT_OPTIONS_PLIST }}
+        if: steps.signing.outputs.mode == 'signed'
         run: |
-          if [ -z "$EXPORT_PLIST" ]; then
-            echo "EXPORT_OPTIONS_PLIST secret not set; skipping signed export"
-            exit 0
-          fi
-          echo "$EXPORT_PLIST" | base64 --decode > build/ExportOptions.plist
+          echo "$EXPORT_OPTIONS_PLIST" | base64 --decode > build/ExportOptions.plist
+          mkdir -p build/ipa
           xcodebuild -exportArchive \
             -archivePath build/App.xcarchive \
             -exportOptionsPlist build/ExportOptions.plist \
             -exportPath build/ipa \
             | xcpretty
+          echo "✓ Signed .ipa exported:" && ls -la build/ipa/*.ipa
 
-      - name: Build unsigned .ipa (no signing keys)
-        if: ${{ env.BUILD_CERTIFICATE_BASE64 == '' }}
+      - name: Build unsigned .ipa
+        if: steps.signing.outputs.mode == 'unsigned'
         run: |
-          # Package the compiled app into an .ipa container without signing, so the
-          # compiled binary is downloadable even without an Apple Developer cert.
-          # This .ipa installs via sideloading tools; TestFlight needs the signed path.
           mkdir -p build/ipa/Payload
           cp -R build/App.xcarchive/Products/Applications/App.app build/ipa/Payload/
           cd build/ipa && zip -qry ../PULLPOP-unsigned.ipa Payload && cd ../..
@@ -105,18 +133,20 @@ jobs:
         with:
           name: PULLPOP-iOS
           path: |
-            build/PULLPOP-unsigned.ipa
             build/ipa/*.ipa
+            build/PULLPOP-unsigned.ipa
             build/PULLPOP-xcarchive.zip
           if-no-files-found: error
 
       - name: Upload to TestFlight
-        if: ${{ env.APP_STORE_CONNECT_API_KEY != '' }}
+        if: steps.signing.outputs.mode == 'signed' && env.APP_STORE_CONNECT_API_KEY != ''
         env:
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          IPA=$(ls build/ipa/*.ipa 2>/dev/null | head -1)
-          if [ -z "$IPA" ]; then echo "No .ipa to upload"; exit 0; fi
-          echo "$APP_STORE_CONNECT_API_KEY" | base64 --decode > /tmp/AuthKey_8X2K4P9K2H.p8
+          IPA=$(ls build/ipa/*.ipa | head -1)
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
           xcrun altool --upload-app --type ios -f "$IPA" \
-            --apiKey 8X2K4P9K2H --apiIssuer ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"

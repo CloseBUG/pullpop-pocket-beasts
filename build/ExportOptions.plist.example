@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ExportOptions.plist for producing a SIGNED App Store / TestFlight .ipa.
+  Copy this to build/ExportOptions.plist and fill in YOUR values, then
+  base64-encode it and store as the repo secret EXPORT_OPTIONS_PLIST:
+
+      base64 -i build/ExportOptions.plist -o build/ExportOptions.plist.b64
+      gh secret set EXPORT_OPTIONS_PLIST < build/ExportOptions.plist.b64
+
+  Replace:
+    YOUR_TEAM_ID        — your Apple Developer Team ID (e.g. ABCD123XYZ)
+                          Found in App Store Connect → Users and Access, or
+                          developer.apple.com → Account → Membership.
+    YOUR_PROFILE_UUID   — the UUID of your App Store provisioning profile
+                          (the workflow installs it from BUILD_PROVISION_PROFILE_BASE64).
+
+  teamID must match the distribution certificate you provide as BUILD_CERTIFICATE_BASE64.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store</string>
+	<key>teamID</key>
+	<string>YOUR_TEAM_ID</string>
+	<key>uploadBitcode</key>
+	<false/>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>studio.tumble.pullpop</key>
+		<dict>
+			<key>identifier</key>
+			<string>YOUR_PROFILE_UUID</string>
+		</dict>
+	</dict>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>stripSwiftSymbols</key>
+	<true/>
+</dict>
+</plist>

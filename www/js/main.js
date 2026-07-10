@@ -7,6 +7,13 @@
   const ctx = canvas.getContext('2d');
   const V = PP_Config.VIEW;
 
+  // Register the service worker for offline support (only on http/https, not file://).
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
   // ---- Canvas DPR-aware backing store, CSS-scaled by layout ----
   function resizeCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);

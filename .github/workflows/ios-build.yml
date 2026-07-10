@@ -120,13 +120,24 @@ jobs:
             | xcpretty
           echo "✓ Signed .ipa exported:" && ls -la build/ipa/*.ipa
 
-      - name: Build unsigned .ipa
+      - name: Build unsigned .ipa (with ad-hoc signing for Simulator)
         if: steps.signing.outputs.mode == 'unsigned'
         run: |
+          # Extract the compiled app, apply ad-hoc codesign (no Apple cert needed),
+          # and repackage as .ipa. Ad-hoc signing lets the binary run on the iOS
+          # Simulator. For real-device/TestFlight distribution, the 'signed' path
+          # above requires a real Apple Distribution certificate.
+          APP_DIR="build/App.xcarchive/Products/Applications/App.app"
+          # Ad-hoc sign the main app + frameworks
+          codesign --force --sign - --timestamp=none "$APP_DIR"
+          for fw in "$APP_DIR"/Frameworks/*.framework; do
+            [ -d "$fw" ] && codesign --force --sign - --timestamp=none "$fw" || true
+          done
           mkdir -p build/ipa/Payload
-          cp -R build/App.xcarchive/Products/Applications/App.app build/ipa/Payload/
+          cp -R "$APP_DIR" build/ipa/Payload/
           cd build/ipa && zip -qry ../PULLPOP-unsigned.ipa Payload && cd ../..
-          echo "✓ Unsigned .ipa built:" && ls -la build/PULLPOP-unsigned.ipa
+          echo "✓ .ipa built (ad-hoc signed):" && ls -la build/PULLPOP-unsigned.ipa
+          echo "::notice::Ad-hoc signed .ipa (runs on Simulator). For TestFlight, provide Apple signing secrets."
 
       - name: Upload compiled artifacts
         uses: actions/upload-artifact@v4

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#16142a" />
+<title>PULLPOP: Pocket Beasts — Feel Prototype</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- The game stage holds the canvas; it scales to portrait. -->
+    <div id="stage">
+      <canvas id="game" width="720" height="1280"></canvas>
+
+      <!-- Overlay UI (DOM). Drawn above the canvas. -->
+      <div id="overlay" class="overlay">
+        <!-- Title / start screen -->
+        <section id="screen-title" class="screen center">
+          <div class="title-art">
+            <div class="title-pop" aria-hidden="true"></div>
+          </div>
+          <h1 class="game-title">PULLPOP</h1>
+          <p class="game-sub">Pocket Beasts</p>
+          <p class="game-pitch">Pull. Bounce. Build wild combos.</p>
+          <button id="btn-start" class="big-btn">PLAY</button>
+          <button id="btn-howto" class="link-btn">How to play</button>
+          <p class="build-tag">Feel Prototype · Phase 0</p>
+        </section>
+
+        <!-- How to play -->
+        <section id="screen-howto" class="screen center hidden">
+          <h2>How to play</h2>
+          <ul class="howto-list">
+            <li><b>Drag back</b> from a Ready Popling to aim — like a slingshot.</li>
+            <li>The <b>dotted line</b> previews your first ricochet.</li>
+            <li><b>Release</b> to launch. Bounce off walls, enemies & allies.</li>
+            <li><b>Tap</b> while flying to POP (when charged).</li>
+            <li>Drag into the <b>cancel circle</b> to cancel safely.</li>
+            <li>Survive enemy intents. Clear the room. Keep your Courage.</li>
+          </ul>
+          <p class="howto-note">One finger. Endless angles.</p>
+          <button id="btn-howto-back" class="big-btn">GOT IT</button>
+        </section>
+
+        <!-- Pause -->
+        <section id="screen-pause" class="screen center hidden">
+          <h2>Paused</h2>
+          <button id="btn-resume" class="big-btn">RESUME</button>
+          <button id="btn-settings" class="link-btn">Settings</button>
+          <button id="btn-quit" class="link-btn danger">Quit run</button>
+        </section>
+
+        <!-- Settings -->
+        <section id="screen-settings" class="screen hidden scroll">
+          <h2>Settings</h2>
+          <div class="settings-list" id="settings-list"></div>
+          <button id="btn-settings-back" class="big-btn">DONE</button>
+        </section>
+
+        <!-- Augment choice -->
+        <section id="screen-augment" class="screen center hidden">
+          <h2 id="aug-title">Choose a Boost</h2>
+          <p class="aug-sub">Lasts this expedition. Pick one.</p>
+          <div class="aug-cards" id="aug-cards"></div>
+          <button id="btn-aug-reroll" class="link-btn">Reroll (<span id="reroll-count">1</span> left)</button>
+        </section>
+
+        <!-- Room result -->
+        <section id="screen-result" class="screen center hidden">
+          <div class="result-thumb" id="result-thumb"></div>
+          <h2 id="result-title">Room Cleared!</h2>
+          <p class="result-line" id="result-highlight"></p>
+          <div class="result-stats" id="result-stats"></div>
+          <button id="btn-continue" class="big-btn">CONTINUE</button>
+        </section>
+
+        <!-- Run end -->
+        <section id="screen-end" class="screen center hidden">
+          <div class="result-thumb" id="end-thumb"></div>
+          <h2 id="end-title">Expedition Complete</h2>
+          <p class="result-line" id="end-line"></p>
+          <div class="result-stats" id="end-stats"></div>
+          <div class="end-actions">
+            <button id="btn-watch" class="link-btn">Watch replay</button>
+            <button id="btn-again" class="big-btn">AGAIN</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Loading/flash layer -->
+      <div id="flash" class="flash"></div>
+    </div>
+  </div>
+
+  <!-- Scripts: classic scripts so the game runs from file:// by double-click. -->
+  <script src="js/util.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/haptics.js"></script>
+  <script src="js/effects.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/replay.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

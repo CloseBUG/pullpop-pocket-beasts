@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Capacitor / Xcode build artifacts
+ios/App/App/public/
+ios/App/Pods/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/build/
+ios/App/DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+
+# Test output
+test/screenshot.png
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

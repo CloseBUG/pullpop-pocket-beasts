@@ -1,0 +1,22 @@
+{
+  "name": "pullpop-pocket-beasts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PULLPOP: Pocket Beasts — Feel Prototype (Phase 0). One-thumb ricochet action roguelite.",
+  "scripts": {
+    "test": "node test/headless.cjs",
+    "test:browser": "node test/browser.cjs",
+    "test:ios": "node test/validate-ios.cjs",
+    "cap:sync": "cap sync ios",
+    "cap:open:ios": "cap open ios",
+    "cap:copy:ios": "cap copy ios",
+    "build:ios": "bash scripts/build-ios.sh"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

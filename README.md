@@ -22,6 +22,18 @@ python -m http.server 8080
 
 Audio unlocks on the first tap (mobile autoplay policy).
 
+**Option C — test on your phone right now (no install needed):**
+The game is hosted live on GitHub Pages:
+> **👉 https://closebug.github.io/pullpop-pocket-beasts/**
+
+Open that URL in **Safari on iPhone** (or any mobile browser). To install it as an app icon:
+- **iPhone:** Safari → Share → *Add to Home Screen*. It launches fullscreen, portrait-locked, with its own icon (it's a PWA). Works offline after first load.
+- **Android/Chrome:** tap *Install* / *Add to Home screen*.
+
+This is the fastest device-testing path — no Xcode, no App Store, no signing needed.
+
+> **Note on Expo Go:** this game is an HTML5 Canvas app, *not* a React Native app, so it does not run in Expo Go. The hosted URL above is the equivalent "test before release" path for this type of game.
+
 ---
 
 ## 🎮 How to play

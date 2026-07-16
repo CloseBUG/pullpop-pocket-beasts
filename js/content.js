@@ -158,11 +158,39 @@
     { id: 'pass_it_on', name: 'Pass It On', family: 'Buddy', rarity: 'common', desc: 'Buddy hit transfers one positive status.', icon: '🔄', tags: ['buddy','status'], hook: 'pass_it_on' },
     { id: 'wake_up', name: 'Wake-Up Call', family: 'Buddy', rarity: 'common', desc: 'Hitting a resting ally makes it Ready next turn.', icon: '⏰', tags: ['buddy','ready'], hook: 'wake_up' },
     { id: 'threes_company', name: 'Three\u2019s Company', family: 'Buddy', rarity: 'rare', desc: 'Touching both allies in one shot heals Courage (+10).', icon: '💛', tags: ['buddy','heal'], hook: 'threes_company' },
+    { id: 'secret_handshake', name: 'Secret Handshake', family: 'Buddy', rarity: 'rare', desc: 'Alternating the same two Poplings escalates Buddy power.', icon: '🤝', tags: ['buddy','escalate'], hook: 'secret_handshake' },
+    { id: 'group_photo', name: 'Group Photo', family: 'Buddy', rarity: 'rare', desc: 'Ending all three Poplings close together grants a temporary aura.', icon: '📸', tags: ['buddy','aura'], hook: 'group_photo' },
     // Precision
     { id: 'called_shot', name: 'Called Shot', family: 'Precision', rarity: 'common', desc: 'First enemy hit matches the preview and gains +25% damage.', icon: '🎯', tags: ['precision','damage'], hook: 'called_shot' },
     { id: 'bank_shot', name: 'Bank Shot', family: 'Precision', rarity: 'common', desc: 'First enemy hit after a wall is guaranteed critical.', icon: '🏦', tags: ['precision','crit'], hook: 'bank_shot' },
     { id: 'long_distance', name: 'Long Distance', family: 'Precision', rarity: 'common', desc: 'Damage increases with travel distance before first enemy contact.', icon: '📏', tags: ['precision','damage'], hook: 'long_distance' },
     { id: 'clean_entrance', name: 'Clean Entrance', family: 'Precision', rarity: 'rare', desc: 'Hitting an enemy before touching a wall creates shield (+8).', icon: '🛡️', tags: ['precision','shield'], hook: 'clean_entrance' },
+    // Element (§9 #13-18)
+    { id: 'spicy_corners', name: 'Spicy Corners', family: 'Element', rarity: 'common', desc: 'Wall hits add one Burn to the next enemy struck.', icon: '🔥', tags: ['element','burn'], hook: 'spicy_corners' },
+    { id: 'cold_snap', name: 'Cold Snap', family: 'Element', rarity: 'common', desc: 'First Chill each turn also slows nearby enemies.', icon: '❄️', tags: ['element','chill'], hook: 'cold_snap' },
+    { id: 'parallel_circuit', name: 'Parallel Circuit', family: 'Element', rarity: 'common', desc: 'Shock may chain through a Buddy.', icon: '⚡', tags: ['element','shock'], hook: 'parallel_circuit' },
+    { id: 'wild_garden', name: 'Wild Garden', family: 'Element', rarity: 'rare', desc: 'Bloom bumpers grow larger after being struck.', icon: '🌿', tags: ['element','bloom'], hook: 'wild_garden' },
+    { id: 'fault_line', name: 'Fault Line', family: 'Element', rarity: 'common', desc: 'Break shockwaves travel through breakable objects.', icon: '🌋', tags: ['element','break'], hook: 'fault_line' },
+    { id: 'spotlight', name: 'Spotlight', family: 'Element', rarity: 'rare', desc: 'Defeating a Marked target marks the farthest enemy.', icon: '🔦', tags: ['element','mark'], hook: 'spotlight' },
+    // Precision continued (§9 #19-24)
+    { id: 'thread_the_needle', name: 'Thread the Needle', family: 'Precision', rarity: 'common', desc: 'Passing close to an enemy charges POP faster.', icon: '🪡', tags: ['precision','pop'], hook: 'thread_the_needle' },
+    { id: 'perfect_pause', name: 'Perfect Pause', family: 'Precision', rarity: 'rare', desc: 'Triggering POP inside a timing window briefly slows motion.', icon: '⏸️', tags: ['precision','slowmo'], hook: 'perfect_pause' },
+    { id: 'soft_landing', name: 'Soft Landing', family: 'Bounce', rarity: 'common', desc: 'Ending a shot beside an ally grants shield (+6).', icon: '🛬', tags: ['bounce','shield'], hook: 'soft_landing' },
+    { id: 'round_trip', name: 'Round Trip', family: 'Bounce', rarity: 'common', desc: 'Returning near the start point refunds part of POP charge.', icon: '🔄', tags: ['bounce','pop'], hook: 'round_trip' },
+    // Swarm (§9 #25-30)
+    { id: 'pocket_echo', name: 'Pocket Echo', family: 'Swarm', rarity: 'common', desc: 'First POP creates a harmless echo that can trigger objects.', icon: '🔔', tags: ['swarm','echo'], hook: 'pocket_echo' },
+    { id: 'loose_change', name: 'Loose Change', family: 'Swarm', rarity: 'common', desc: 'Breakables release bouncing coins that deal tiny impact damage.', icon: '🪙', tags: ['swarm','coins'], hook: 'loose_change' },
+    { id: 'mini_me', name: 'Mini Me', family: 'Swarm', rarity: 'rare', desc: 'Every 20th combo spawns a one-hit miniature Popling.', icon: '🐣', tags: ['swarm','minion'], hook: 'mini_me' },
+    { id: 'fireflies', name: 'Fireflies', family: 'Swarm', rarity: 'common', desc: 'Healing releases seeking lights that apply Mark.', icon: '✨', tags: ['swarm','mark'], hook: 'fireflies' },
+    { id: 'afterimage', name: 'Afterimage', family: 'Swarm', rarity: 'common', desc: 'Critical hits leave a delayed impact ghost.', icon: '👻', tags: ['swarm','ghost'], hook: 'afterimage' },
+    { id: 'party_crashers', name: 'Party Crashers', family: 'Swarm', rarity: 'common', desc: 'Entering a new room begins with two neutral bumpers.', icon: '🎉', tags: ['swarm','bumpers'], hook: 'party_crashers' },
+    // Courage (§9 #31-36)
+    { id: 'brave_face', name: 'Brave Face', family: 'Courage', rarity: 'common', desc: 'Below 30 Courage, first hit each turn grants shield.', icon: '😤', tags: ['courage','shield'], hook: 'brave_face' },
+    { id: 'close_call', name: 'Close Call', family: 'Courage', rarity: 'common', desc: 'Leaving an intent zone during the shot heals one Courage.', icon: '😮‍💨', tags: ['courage','heal'], hook: 'close_call' },
+    { id: 'overprotective', name: 'Overprotective', family: 'Courage', rarity: 'common', desc: 'Excess healing becomes a capped shield.', icon: '🫂', tags: ['courage','shield'], hook: 'overprotective' },
+    { id: 'last_laugh', name: 'Last Laugh', family: 'Courage', rarity: 'rare', desc: 'Once per room, lethal damage leaves one Courage.', icon: '😈', tags: ['courage','survive'], hook: 'last_laugh' },
+    { id: 'belly_flop', name: 'Belly Flop', family: 'Courage', rarity: 'common', desc: 'Heavier Poplings gain power based on current shield.', icon: '🤰', tags: ['courage','damage'], hook: 'belly_flop' },
+    { id: 'all_in', name: 'All In', family: 'Courage', rarity: 'rare', desc: 'Lose trajectory preview; gain damage and double score.', icon: '🃏', tags: ['courage','risk'], hook: 'all_in' },
   ];
 
   // ---- Worlds (§11) — Phase 0 greybox single arena; flavor only. ----

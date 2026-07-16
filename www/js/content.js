@@ -175,6 +175,40 @@
       exposedDamageMult: 2.3,
       lesson: 'Pop the pressure bubbles in sequence to expose the center.',
     },
+    // ---- Boss: The Snooze (blueprint §11 World 4 — Clockwork Cloud) ----
+    // A giant alarm clock that steals one upcoming turn. Striking clock hands
+    // changes when attacks resolve; perfect timing wakes sleeping bumpers.
+    // Phase 0 simplified: TICKING (armored, charges attack) <-> RINGING (vulnerable).
+    the_snooze: {
+      id: 'the_snooze', name: 'The Snooze',
+      color: '#b0a8d0', color2: '#e0daf0', accent: '#3a2f5a',
+      hp: 200, radius: 58, armor: 3,
+      phaseDuration: 3,
+      intentDamage: 13,
+      // Each ticking turn, advances a countdown; at zero, "steals a turn" (extra damage).
+      stealThreshold: 3, stealDamage: 15,
+      // Spawns a "clock hand" gear object each turn that must be struck to reset timing.
+      gearsPerTurn: 2, gearHp: 6,
+      exposedDamageMult: 2.3,
+      lesson: 'Strike the clock hands to reset the alarm before it rings.',
+    },
+    // ---- Boss: The Hush Regent (blueprint §11 World 5 — Velvet Void) ----
+    // A three-act encounter that disables one familiar affordance per phase:
+    // Act 1 disables sound cue, Act 2 disables trajectory extension,
+    // Act 3 disables color (icons/patterns remain). Beaten by Buddy chains.
+    // Phase 0 simplified: HUSHING (armored, drains color) <-> VULNERABLE.
+    the_hush_regent: {
+      id: 'the_hush_regent', name: 'The Hush Regent',
+      color: '#8a8aa0', color2: '#c0c0d0', accent: '#1a1a2a',
+      hp: 240, radius: 62, armor: 4,
+      phaseDuration: 3,
+      intentDamage: 14,
+      // Drains Courage each hushing turn (the "Hush" spreading).
+      drainDamage: 9,
+      // Exposed only by Buddy chains — requires touching 2+ allies this shot.
+      exposedDamageMult: 2.5,
+      lesson: 'Create unpredictable Buddy chains to break the Hush.',
+    },
   };
 
   // ---- Augments (§9) — Phase 0: 12 across Bounce / Buddy / Precision ----
@@ -230,6 +264,8 @@
     jellyyard: { id: 'jellyyard', name: 'Jellyyard', theme: 'garden of lost lunchboxes', color: '#7be0a8', floor: '#23334a' },
     ember_pantry: { id: 'ember_pantry', name: 'Ember Pantry', theme: 'an impossible kitchen inside a coat pocket', color: '#ff8c42', floor: '#3a2317' },
     bubbleworks: { id: 'bubbleworks', name: 'Bubbleworks', theme: 'a flooded workshop inside a glass marble', color: '#5ec8e0', floor: '#173040' },
+    clockwork_cloud: { id: 'clockwork_cloud', name: 'Clockwork Cloud', theme: 'a weather factory built from lost watches', color: '#b0a8d0', floor: '#241f3a' },
+    velvet_void: { id: 'velvet_void', name: 'Velvet Void', theme: 'a quiet theatre where color has almost vanished', color: '#8a8aa0', floor: '#15151f' },
   };
 
   // ---- Status effects (§8) ----

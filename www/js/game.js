@@ -372,12 +372,18 @@
     // ---- room generation (data-driven, seeded) ----
     buildRoom(idx) {
       // World selection across expeditions:
-      //  rooms 0-4  = Jellyyard (World 1)
-      //  rooms 5-10 = Ember Pantry (World 2)
-      //  rooms 11+  = Bubbleworks (World 3)
+      //  rooms 0-4   = Jellyyard (World 1)
+      //  rooms 5-10  = Ember Pantry (World 2)
+      //  rooms 11-16 = Bubbleworks (World 3)
+      //  rooms 17-22 = Clockwork Cloud (World 4)
+      //  rooms 23+   = Velvet Void (World 5)
       const inEmberPantry = idx >= 5 && idx < 11;
-      const inBubbleworks = idx >= 11;
-      const world = inBubbleworks ? PP_Content.WORLDS.bubbleworks
+      const inBubbleworks = idx >= 11 && idx < 17;
+      const inClockwork = idx >= 17 && idx < 23;
+      const inVelvetVoid = idx >= 23;
+      const world = inVelvetVoid ? PP_Content.WORLDS.velvet_void
+                  : inClockwork ? PP_Content.WORLDS.clockwork_cloud
+                  : inBubbleworks ? PP_Content.WORLDS.bubbleworks
                   : inEmberPantry ? PP_Content.WORLDS.ember_pantry
                   : PP_Content.WORLDS.jellyyard;
       this.currentWorldId = world.id;
@@ -393,8 +399,10 @@
       const isBossRoom = (!this.isDaily && !this.isWild && !this.isTower && !this.isPlayground && idx === this.totalRooms - 1);
       let uid = 0;
       if (isBossRoom && PP_Content.BOSSES) {
-        // Pick boss by world: Bubbleworks → Tanktopus, Ember Pantry → Chef Char, else Grumble Hoover.
-        const bossDef = (this.currentWorldId === 'bubbleworks' && PP_Content.BOSSES.tanktopus) ? PP_Content.BOSSES.tanktopus
+        // Pick boss by world.
+        const bossDef = (this.currentWorldId === 'velvet_void' && PP_Content.BOSSES.the_hush_regent) ? PP_Content.BOSSES.the_hush_regent
+          : (this.currentWorldId === 'clockwork_cloud' && PP_Content.BOSSES.the_snooze) ? PP_Content.BOSSES.the_snooze
+          : (this.currentWorldId === 'bubbleworks' && PP_Content.BOSSES.tanktopus) ? PP_Content.BOSSES.tanktopus
           : (this.currentWorldId === 'ember_pantry' && PP_Content.BOSSES.chef_char) ? PP_Content.BOSSES.chef_char
           : PP_Content.BOSSES.grumble_hoover;
         if (bossDef) {
@@ -527,6 +535,8 @@
       // Each boss has its own phase names; default to shielding/exposed.
       const startPhase = (def.id === 'chef_char') ? 'cooking'
                        : (def.id === 'tanktopus') ? 'guarded'
+                       : (def.id === 'the_snooze') ? 'ticking'
+                       : (def.id === 'the_hush_regent') ? 'hushing'
                        : 'shielding';
       const boss = {
         uid: 'boss', id: def.id, def, kind: 'enemy', isBoss: true,
@@ -958,6 +968,20 @@
           this.bumpCombo();
           return;
         }
+        // Clock gear (The Snooze, §11 W4): takes damage and breaks.
+        if (o.gear && !o.dead) {
+          o.gearHp -= (ap ? ap.def.power : 10);
+          PP_Audio.comboHit(ss.combo, 'object');
+          PP_Effects.burst(o.x, o.y, ev.nx, ev.ny, { count: 8, color: '#e0daf0', speed: 280, size: 4, life: 0.35 });
+          PP_Effects.shake(2);
+          if (o.gearHp <= 0) {
+            o.dead = true;
+            PP_Effects.ring(o.x, o.y, { color: '#b0a8d0', radius: o.r + 12, life: 0.4, width: 5 });
+            PP_Effects.floatText(o.x, o.y - 20, 'CLANG!', { color: '#b0a8d0', size: 16 });
+          }
+          this.bumpCombo();
+          return;
+        }
         if (o.bumper) {
           // bumper restitution handled in physics; add flair
           PP_Audio.comboHit(ss.combo, 'object');
@@ -975,7 +999,7 @@
       // Boss: takes bonus damage when EXPOSED, reduced when SHIELDING (blueprint §11).
       if (e.isBoss) {
         // Both bosses: take bonus damage when vulnerable (exposed / stunned).
-        const vulnerable = (e.bossPhase === 'exposed' || e.bossPhase === 'stunned' || e.bossPhase === 'popped');
+        const vulnerable = ['exposed', 'stunned', 'popped', 'ringing', 'revealed'].includes(e.bossPhase);
         if (vulnerable) {
           dmg *= e.exposedDamageMult;
           PP_Effects.floatText(e.x, e.y - e.r - 28, e.bossPhase === 'stunned' ? 'STUNNED!' : 'EXPOSED!', { color: '#ff7b9c', size: 18, big: true, life: 0.8 });
@@ -1374,6 +1398,93 @@
               e.phaseCounter = e.def.phaseDuration;
               e.armor = e.def.armor;
               PP_Effects.floatText(e.x, e.y - e.r - 20, 'ARMS UP', { color: '#5ec8e0', size: 16 });
+            }
+          }
+          continue;
+        }
+
+        // ---- The Snooze boss turn (blueprint §11 World 4) ----
+        if (e.isBoss && e.id === 'the_snooze') {
+          if (e.bossPhase === 'ticking') {
+            // Charge: advance countdown toward "steal a turn" (extra damage).
+            e._stealCount = (e._stealCount || 0) + 1;
+            // Spawn gear (clock hand) objects that must be struck to reset timing.
+            const n = e.def.gearsPerTurn || 2;
+            for (let g = 0; g < n; g++) {
+              const ang = this.rng.range(0, TAU);
+              const gx = clamp(e.x + Math.cos(ang) * 180, a.x + 40, a.x + a.w - 40);
+              const gy = clamp(e.y + Math.sin(ang) * 180, a.y + 40, a.y + a.h - 40);
+              room.objects.push({
+                uid: 'gear' + room.objects.length, kind: 'object', id: 'gear',
+                x: gx, y: gy, r: 22, bumper: true, restitution: 1.1,
+                gear: true, gearHp: e.def.gearHp || 6,
+                def: { color: '#b0a8d0', color2: '#e0daf0' }, sx: 1, sy: 1, _hit: 0,
+              });
+            }
+            // If countdown reached, "steal a turn" — bonus damage.
+            if (e._stealCount >= (e.def.stealThreshold || 3)) {
+              for (const p of this.squad) {
+                if (p.state === 'dead') continue;
+                this.hurtCourage(e.def.stealDamage || 15, 'The Snooze steals a turn', p);
+              }
+              PP_Effects.ring(e.x, e.y, { color: '#b0a8d0', radius: 500, life: 0.6, width: 8 });
+              PP_Effects.shake(8); PP_Effects.flash(0.4);
+              e._stealCount = 0;
+            }
+            // Check if gears struck → ringing (vulnerable)
+            const gearsLeft = room.objects.filter(o => o.id === 'gear' && !o.dead).length;
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0 || gearsLeft === 0) {
+              e.bossPhase = 'ringing';
+              e.phaseCounter = 2;
+              e.armor = 0;
+              e._stealCount = 0;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'ALARM RINGING!', { color: '#ffd166', size: 22, big: true, life: 1.2 });
+              PP_Effects.ring(e.x, e.y, { color: '#ffd166', radius: e.r, life: 0.6, width: 8 });
+              PP_Effects.shake(6); PP_Effects.flash(0.3);
+            } else {
+              PP_Effects.floatText(e.x, e.y - e.r - 16, gearsLeft + ' hands left', { color: '#b0a8d0', size: 14 });
+            }
+          } else if (e.bossPhase === 'ringing') {
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0) {
+              e.bossPhase = 'ticking';
+              e.phaseCounter = e.def.phaseDuration;
+              e.armor = e.def.armor;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'RESET', { color: '#b0a8d0', size: 16 });
+            }
+          }
+          continue;
+        }
+
+        // ---- The Hush Regent boss turn (blueprint §11 World 5) ----
+        if (e.isBoss && e.id === 'the_hush_regent') {
+          if (e.bossPhase === 'hushing') {
+            // The Hush spreads: drain Courage from all poplings.
+            for (const p of this.squad) {
+              if (p.state === 'dead') continue;
+              this.hurtCourage(e.def.drainDamage || 9, 'The Hush drains', p);
+            }
+            PP_Effects.ring(e.x, e.y, { color: '#8a8aa0', radius: 600, life: 0.6, width: 6 });
+            PP_Effects.flash(0.15);
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0) {
+              // Become briefly vulnerable — must be hit by a Buddy chain this turn.
+              e.bossPhase = 'revealed';
+              e.phaseCounter = 2;
+              e.armor = 0;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'HUSH FALTERS!', { color: '#ffd166', size: 22, big: true, life: 1.2 });
+              PP_Effects.ring(e.x, e.y, { color: '#ffd166', radius: e.r, life: 0.6, width: 8 });
+            } else {
+              PP_Effects.floatText(e.x, e.y - e.r - 16, 'the Hush spreads...', { color: '#8a8aa0', size: 14 });
+            }
+          } else if (e.bossPhase === 'revealed') {
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0) {
+              e.bossPhase = 'hushing';
+              e.phaseCounter = e.def.phaseDuration;
+              e.armor = e.def.armor;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'SILENCE RETURNS', { color: '#8a8aa0', size: 16 });
             }
           }
           continue;

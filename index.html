@@ -36,6 +36,7 @@
           <button id="btn-daily" class="link-btn">Daily Shot <span id="daily-date"></span></button>
           <button id="btn-playground" class="link-btn">Playground</button>
           <button id="btn-sanctuary" class="link-btn">Sanctuary</button>
+          <button id="btn-share" class="link-btn">Share / Challenge</button>
           <button id="btn-howto" class="link-btn">How to play</button>
           <p class="build-tag">Feel Prototype · Phase 0</p>
         </section>
@@ -57,7 +58,28 @@
           <div class="aug-cards" id="sanctuary-rooms"></div>
           <h3 style="margin:16px 0 4px;">Popling Friendship</h3>
           <div class="aug-cards" id="sanctuary-friendship"></div>
+          <button id="btn-wardrobe-open" class="link-btn">👕 Wardrobe</button>
           <button id="btn-sanctuary-back" class="big-btn">BACK</button>
+        </section>
+
+        <!-- Wardrobe (blueprint §16 cosmetics, §19) -->
+        <section id="screen-wardrobe" class="screen hidden scroll">
+          <h2>Wardrobe</h2>
+          <p class="aug-sub" id="wardrobe-sparks">Sparks: 0</p>
+          <div class="aug-cards" id="wardrobe-cosmetics"></div>
+          <button id="btn-wardrobe-back" class="big-btn">BACK</button>
+        </section>
+
+        <!-- Share / load challenge (blueprint §24) -->
+        <section id="screen-share" class="screen center hidden">
+          <h2>Share Challenge</h2>
+          <p class="aug-sub">Your run as a share code (blueprint §24):</p>
+          <input id="share-code-input" class="share-code" readonly />
+          <button id="btn-share-copy" class="link-btn">Copy code</button>
+          <p class="aug-sub" style="margin-top:18px;">Or enter a friend's code:</p>
+          <input id="share-code-load" class="share-code" placeholder="P0P-J......" />
+          <button id="btn-share-load" class="big-btn">PLAY CHALLENGE</button>
+          <button id="btn-share-back" class="link-btn">Back</button>
         </section>
 
         <!-- How to play -->

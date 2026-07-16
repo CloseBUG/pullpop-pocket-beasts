@@ -344,7 +344,12 @@
     ctx.rotate(rot);
     ctx.scale(stretch * (p.sx || 1), squish * (p.sy || 1));
     const r = p.r;
-    const def = p.def;
+    let def = p.def;
+    // Apply cosmetic color override if equipped (§16/§19).
+    if (game && game.poplingColor && p.id) {
+      const oc = game.poplingColor(p.id);
+      if (oc) def = Object.assign({}, def, { color: oc.color, color2: oc.color2 });
+    }
     // shadow
     ctx.save();
     ctx.rotate(-rot);

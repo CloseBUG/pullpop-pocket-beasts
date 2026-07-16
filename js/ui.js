@@ -52,6 +52,15 @@
       showSquadSelect('playground');
     });
     on('#btn-sanctuary', 'click', () => { PP_Audio.uiClick(); showSanctuary(); });
+    on('#btn-season', 'click', () => { PP_Audio.uiClick(); showSeason(); });
+    on('#btn-season-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
+    on('#btn-season-premium', 'click', () => {
+      PP_Audio.uiClick();
+      const res = game.buySeasonPremium();
+      if (res.ok) { PP_Audio.good(); PP_UI.toast('Premium unlocked!'); }
+      else { PP_Audio.bad(); PP_UI.toast(res.reason); }
+      showSeason();
+    });
     on('#btn-sanctuary-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     on('#btn-wardrobe-open', 'click', () => { PP_Audio.uiClick(); showWardrobe(); });
     on('#btn-share', 'click', () => { PP_Audio.uiClick(); showShare(); });
@@ -254,6 +263,50 @@
     if (inp) inp.value = code;
     const loadInp = document.getElementById('share-code-load');
     if (loadInp) loadInp.value = '';
+  }
+
+  // ---- Season Pass (blueprint §16) ----
+  function showSeason() {
+    hideAll(); show('screen-season');
+    const xpNext = game.seasonLevel * 100;
+    setText('#season-status', `Level ${game.seasonLevel}/50 · XP ${game.seasonXP}/${xpNext}${game.seasonPremium ? ' · PREMIUM' : ' (free track)'}`);
+    const cont = document.getElementById('season-rewards');
+    if (!cont) return;
+    cont.innerHTML = '';
+    const levels = [5, 10, 15, 20, 30, 40, 50];
+    for (const lvl of levels) {
+      const reached = game.seasonLevel >= lvl;
+      const freeR = game.seasonReward(lvl, false);
+      const premR = game.seasonReward(lvl, true);
+      const card = document.createElement('div');
+      card.className = 'aug-card' + (reached ? ' rare' : '');
+      const freeDesc = freeR ? (freeR.type === 'sparks' ? `+${freeR.amount} ✨` : 'cosmetic') : '—';
+      const premDesc = premR ? (premR.type === 'cosmetic' ? PP_Content.COSMETICS.find(c=>c.id===premR.id)?.name || 'cosmetic' : '—') : '—';
+      card.innerHTML = `
+        <div class="ac-head">
+          <div class="ac-icon">${reached ? '🎁' : '🔒'}</div>
+          <div>
+            <div class="ac-name">Level ${lvl}</div>
+            <div class="ac-family">${reached ? 'CLAIM' : 'locked'}</div>
+          </div>
+        </div>
+        <div class="ac-desc">Free: ${freeDesc}<br>Premium: ${game.seasonPremium ? premDesc : '🔒 unlock premium'}</div>`;
+      if (reached) {
+        card.addEventListener('click', () => {
+          PP_Audio.uiClick();
+          // Claim free + (premium if owned)
+          const rf = game.claimSeasonReward(lvl, false);
+          const rp = game.seasonPremium ? game.claimSeasonReward(lvl, true) : null;
+          if ((rf && rf.ok) || (rp && rp.ok)) { PP_Audio.good(); PP_UI.toast('Reward claimed!'); }
+          else { PP_UI.toast('Already claimed'); }
+          showSeason();
+        });
+      }
+      cont.appendChild(card);
+    }
+    // Premium button label
+    const premBtn = document.getElementById('btn-season-premium');
+    if (premBtn) premBtn.style.display = game.seasonPremium ? 'none' : 'block';
   }
 
   // ---- Pause ----
@@ -472,7 +525,7 @@
     init, showTitle, togglePause,
     showAugment, bindAugmentUI,
     showSquadSelect, bindSquadUI,
-    showSanctuary, showWardrobe, showShare,
+    showSanctuary, showWardrobe, showShare, showSeason,
     showResult, showEnd, toast,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

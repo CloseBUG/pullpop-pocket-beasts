@@ -58,6 +58,9 @@
       this.sanctuaryRooms = []; // restored rooms (§14)
       this.ownedCosmetics = []; // owned cosmetic ids (§16)
       this.equippedCosmetics = {}; // { poplingId: paletteId, trail: trailId } (§16)
+      this.seasonXP = 0;           // §16 Season Pass XP
+      this.seasonLevel = 1;        // §16 ~50 reward levels
+      this.seasonPremium = false;  // §16 premium track (bought)
       this.loadMeta();
 
       this.aim = null; // current aim info for preview
@@ -123,6 +126,9 @@
           this.friendship = m.friendship || {};
           this.ownedCosmetics = m.ownedCosmetics || [];
           this.equippedCosmetics = m.equippedCosmetics || {};
+          this.seasonXP = m.seasonXP || 0;
+          this.seasonLevel = m.seasonLevel || 1;
+          this.seasonPremium = !!m.seasonPremium;
         }
       } catch (e) {}
       // Init friendship for all Poplings at level 1 (§7).
@@ -137,6 +143,7 @@
         localStorage.setItem('pullpop_meta', JSON.stringify({
           sparks: this.sparks, friendship: this.friendship,
           ownedCosmetics: this.ownedCosmetics, equippedCosmetics: this.equippedCosmetics,
+          seasonXP: this.seasonXP, seasonLevel: this.seasonLevel, seasonPremium: this.seasonPremium,
         }));
       } catch (e) {}
     }
@@ -206,6 +213,56 @@
       }
       const def = PP_Content.POPLINGS[poplingId];
       return def ? { color: def.color, color2: def.color2 } : { color: '#fff', color2: '#ddd' };
+    }
+
+    // ---- Season Pass (blueprint §16: six-week cosmetic track, ~50 reward levels) ----
+    grantSeasonXP(amount) {
+      this.seasonXP += amount;
+      const xpPerLevel = 100;
+      let leveledTo = this.seasonLevel;
+      while (this.seasonXP >= this.seasonLevel * xpPerLevel && this.seasonLevel < 50) {
+        this.seasonXP -= this.seasonLevel * xpPerLevel;
+        this.seasonLevel++;
+        leveledTo = this.seasonLevel;
+      }
+      this.saveMeta();
+      return leveledTo;
+    }
+    // Season reward at a given level (free track always; premium if bought).
+    // §16: premium track contains cosmetics + decorations only (no power §37).
+    seasonReward(level, premium) {
+      const rewards = {
+        5: premium ? { type: 'cosmetic', id: 'trail_sparkle' } : { type: 'sparks', amount: 20 },
+        10: premium ? { type: 'cosmetic', id: 'pogo_sunset' } : { type: 'sparks', amount: 30 },
+        15: premium ? { type: 'cosmetic', id: 'cinder_ember' } : { type: 'sparks', amount: 40 },
+        20: premium ? { type: 'cosmetic', id: 'mosslug_autumn' } : { type: 'sparks', amount: 50 },
+        30: premium ? { type: 'cosmetic', id: 'trail_rainbow' } : { type: 'sparks', amount: 60 },
+        40: premium ? { type: 'cosmetic', id: 'glim_gold' } : { type: 'sparks', amount: 80 },
+        50: premium ? { type: 'cosmetic', id: 'volty_storm' } : { type: 'sparks', amount: 100 },
+      };
+      return rewards[level] || null;
+    }
+    claimSeasonReward(level, premium) {
+      if (level > this.seasonLevel) return { ok: false, reason: 'level not reached' };
+      if (premium && !this.seasonPremium) return { ok: false, reason: 'premium not owned' };
+      const r = this.seasonReward(level, premium);
+      if (!r) return { ok: false, reason: 'no reward' };
+      if (r.type === 'sparks') { this.grantSparks(r.amount, 'season'); }
+      else if (r.type === 'cosmetic') {
+        if (!this.ownedCosmetics.includes(r.id)) this.ownedCosmetics.push(r.id);
+      }
+      this.saveMeta();
+      return { ok: true, reward: r };
+    }
+    buySeasonPremium() {
+      if (this.seasonPremium) return { ok: false, reason: 'already owned' };
+      // Prototype: buy with Sparks instead of real money (§16: premium is a purchase).
+      const cost = 200;
+      if (this.sparks < cost) return { ok: false, reason: 'not enough Sparks (' + cost + ')' };
+      this.sparks -= cost;
+      this.seasonPremium = true;
+      this.saveMeta();
+      return { ok: true };
     }
 
     // ---- Replay / challenge sharing (blueprint §24) ----
@@ -679,6 +736,8 @@
         e.armor += m.armor || 0;
         e.moveAfter = m.moveAfter || e.moveAfter;
         e.explodeOnDeath = m.explodeOnDeath || 0;
+        e.repeatsIntent = !!m.repeatsIntent;   // §10 Echoing
+        e.parasitic = !!m.parasitic;            // §10 Parasitic
         e.maxHp = Math.round(e.maxHp * 1.3); e.hp = e.maxHp;
       }
       return e;
@@ -1704,12 +1763,25 @@
         }
 
         if (e.intent === 'locked') {
+          // §10 Parasitic: deals bonus damage while another named enemy survives.
+          let dmgBonus = 1;
+          if (e.parasitic) {
+            const alliesAlive = room.enemies.filter((x) => !x.dead && x !== e).length;
+            if (alliesAlive > 0) dmgBonus = 1 + 0.15 * alliesAlive;
+          }
           // damage poplings in any locked zone
           for (const z of room.lockedZones) {
             if (z.source !== e.uid) continue;
             for (const p of this.squad) {
-              if (dist(p.x, p.y, z.x, z.y) < z.r) this.hurtCourage(z.damage, 'locked zone', p);
+              if (dist(p.x, p.y, z.x, z.y) < z.r) this.hurtCourage(Math.round(z.damage * dmgBonus), 'locked zone', p);
             }
+          }
+          // §10 Echoing: repeats a weaker version of this intent after a short delay.
+          if (e.repeatsIntent && Math.random() < 0.5) {
+            for (const p of this.squad) {
+              if (dist(p.x, p.y, z.x, z.y) < z.r) this.hurtCourage(Math.round(z.damage * 0.4), 'echo', p);
+            }
+            PP_Effects.floatText(e.x, e.y - e.r - 16, 'echo!', { color: '#9b8cf0', size: 13 });
           }
         } else if (e.intent === 'tracking') {
           for (const tl of room.trackingLines) {
@@ -1941,6 +2013,9 @@
         const squadIds = this.squad.map((p) => p.id);
         this._lastFriendshipGains = this.grantFriendship(squadIds, this.runStats.roomsCleared);
         this._lastSparksEarned = sparksEarned;
+        // Season Pass XP (§16): expeditions advance the season track.
+        const seasonXP = 20 + this.runStats.roomsCleared * 15;
+        this._lastSeasonLevel = this.grantSeasonXP(seasonXP);
       }
       this.setState(S.END);
       PP_UI.showEnd(true, this);

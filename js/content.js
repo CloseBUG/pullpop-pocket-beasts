@@ -192,6 +192,8 @@
     armored: { name: 'Armored', armor: 6, color: '#cfd6e6' },
     restless: { name: 'Restless', moveAfter: true, color: '#e67fb0' },
     unstable: { name: 'Unstable', explodeOnDeath: 90, color: '#ff7b6b' },
+    echoing: { name: 'Echoing', color: '#9b8cf0', repeatsIntent: true },   // §10: repeats weaker prior intent
+    parasitic: { name: 'Parasitic', color: '#7be0a8', parasitic: true },   // §10: gains power while another named enemy lives
   };
 
   // ---- Boss: Grumble Hoover (blueprint §11 World 1) ----

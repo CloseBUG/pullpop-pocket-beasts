@@ -196,6 +196,45 @@
       } catch (e) {}
     }
 
+    // ---- Wild Pocket (blueprint §13.2): procedural endless run with mutators ----
+    startWildPocket() {
+      const seed = ((Math.random() * 1e9) | 0) || 77777;
+      this.runSeed = seed;
+      this.rng = makeRng(seed);
+      this.isWild = true;
+      this.isDaily = false;
+      this.squad = this.buildStartingSquad();
+      this.courage = Cfg.SQUAD.startCourage;
+      this.maxCourage = Cfg.SQUAD.startCourage;
+      this.shield = 0;
+      this.buttons = 0;
+      this.augments = [];
+      this.totalRooms = 12; // long endless run
+      this.roomIndex = 0;
+      this._rerollsLeft = 1;
+      this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
+      this.buildRoom(0);
+      this.setState(S.PLAYING);
+      this.phase = PH.AIM;
+      PP_Replay.reset();
+      PP_Replay.startRecording();
+      PP_Effects.clearAll();
+      PP_UI.toast('WILD POCKET — how deep can you go?');
+    }
+
+    // Mutator for Wild Pocket rooms (blueprint §13.2: transparent difficulty rise).
+    // Returns a descriptor shown to the player so the difficulty is readable.
+    wildMutator(roomIdx) {
+      const tier = Math.floor(roomIdx / 3);
+      const mutators = [];
+      if (tier >= 1) mutators.push({ name: 'Vigor', desc: '+15% enemy HP' });
+      if (tier >= 2) mutators.push({ name: 'Surge', desc: 'one more enemy' });
+      if (tier >= 3) mutators.push({ name: 'Elites', desc: 'elites always present' });
+      if (tier >= 4) mutators.push({ name: 'Ferocity', desc: '+20% enemy damage' });
+      if (tier >= 5) mutators.push({ name: 'Armory', desc: '+2 enemy armor' });
+      return { tier, mutators };
+    }
+
     buildStartingSquad() {
       const ids = ['pogo', 'cinder', 'mosslug'];
       const defs = ids.map((id) => PP_Content.POPLINGS[id]);
@@ -259,17 +298,36 @@
         });
       } else {
         // ---- NORMAL ROOM ----
-        const count = clamp(3 + Math.floor(idx * 0.7), 3, 7); // 3–7 enemies (§5.1)
+        // ---- NORMAL ROOM ----
+        // Wild Pocket mutators (blueprint §13.2: transparent difficulty rise).
+        let extraCount = 0, hpMult = 1, dmgMult = 1, armorAdd = 0, forceElite = false;
+        if (this.isWild) {
+          const m = this.wildMutator(idx);
+          room.mutator = m;
+          for (const mu of m.mutators) {
+            if (mu.name === 'Vigor') hpMult *= 1.15;
+            if (mu.name === 'Surge') extraCount = 1;
+            if (mu.name === 'Elites') forceElite = true;
+            if (mu.name === 'Ferocity') dmgMult = 1.2;
+            if (mu.name === 'Armory') armorAdd = 2;
+          }
+        }
+        const count = clamp(3 + Math.floor(idx * 0.7) + extraCount, 3, 7); // 3–7 enemies (§5.1)
         const enemyKinds = Object.keys(PP_Content.ENEMIES);
         // bias early rooms to dumpling, later rooms add variety
         for (let i = 0; i < count; i++) {
           let kind;
-          if (idx === 0) kind = 'dumpling';
-          else if (idx <= 1) kind = this.rng.pick(['dumpling', 'dumpling', 'pinprick']);
+          if (idx === 0 && !this.isWild) kind = 'dumpling';
+          else if (idx <= 1 && !this.isWild) kind = this.rng.pick(['dumpling', 'dumpling', 'pinprick']);
           else kind = this.rng.pick(enemyKinds);
           const def = PP_Content.ENEMIES[kind];
-          const elite = idx >= 3 && i === 0 ? this.rng.pick(['armored', 'restless', 'unstable', null]) : null;
+          const elite = (forceElite || idx >= 3) && i === 0 ? this.rng.pick(['armored', 'restless', 'unstable', null]) : null;
           const e = this.makeEnemy(def, a, uid++, elite, idx);
+          if (this.isWild) {
+            e.maxHp = Math.round(e.maxHp * hpMult); e.hp = e.maxHp;
+            e.armor += armorAdd;
+            e.intentDamage = Math.round(e.intentDamage * dmgMult);
+          }
           room.enemies.push(e);
         }
         // Add a spring bumper object for "surprise high combo" (tutorial §17 1:20–2:00)
@@ -789,7 +847,57 @@
       PP_Effects.hitStop(crit ? T.hitStopMax : T.hitStopMin);
       // Cinder passive: direct hit adds Burn
       if (ap.def.passiveId === 'ignite') this.applyStatus(e, 'burn', 1);
+      // Tether Twins: share damage with a linked twin within linkRadius (§10).
+      if (e.id === 'tether' && e.hp > 0 && !e._tetherShared) {
+        const linkR = e.def.linkRadius || 200;
+        for (const twin of this.room.enemies) {
+          if (twin === e || twin.dead || twin.id !== 'tether') continue;
+          if (dist(twin.x, twin.y, e.x, e.y) <= linkR) {
+            twin._tetherShared = true; // prevent infinite recursion
+            const shared = dmg * (e.def.sharedDamage || 0.5);
+            twin.hp -= shared;
+            PP_Effects.floatText(twin.x, twin.y - twin.r - 6, `~${Math.round(shared)}`, { color: '#ff6b9d', size: 16 });
+            PP_Effects.burst(twin.x, twin.y, 0, -1, { count: 4, color: '#ff6b9d', speed: 200, size: 3, life: 0.3 });
+            // link beam visual
+            PP_Effects.spawn({ x: (e.x + twin.x) / 2, y: (e.y + twin.y) / 2, vx: 0, vy: 0, life: 0.2, maxLife: 0.2, size: 0, color: '#ff6b9d', kind: 'dot' });
+            if (twin.hp <= 0) this.killEnemy(twin, ap);
+            twin._tetherShared = false;
+            break; // one link per hit
+          }
+        }
+      }
+      // Puffer: inflates when struck repeatedly, then explodes (§10).
+      if (e.id === 'puffer' && e.hp > 0) {
+        e._inflate = (e._inflate || 0) + 1;
+        e.r = (e.def.radius || 24) * (1 + e._inflate * 0.12);
+        if (e._inflate >= (e.def.inflateThreshold || 3)) {
+          // explode: AoE damage to poplings, then die
+          this.pufferExplode(e, ap);
+          e.hp = 0;
+        }
+      }
       if (e.hp <= 0) this.killEnemy(e, ap);
+    }
+
+    // Puffer explosion (blueprint §10): AoE damage to nearby poplings.
+    pufferExplode(e, ap) {
+      const radius = e.def.explodeRadius || 100;
+      const dmg = e.def.explodeDamage || 16;
+      PP_Effects.ring(e.x, e.y, { color: '#ff8c42', radius, life: 0.5, width: 10 });
+      PP_Effects.burst(e.x, e.y, 0, -1, { count: 24, color: '#ffc8a0', speed: 500, size: 7, life: 0.6, spread: 2 });
+      PP_Effects.shake(7); PP_Effects.flash(0.3); PP_Audio.bad();
+      for (const p of this.squad) {
+        if (dist(p.x, p.y, e.x, e.y) < radius) {
+          this.hurtCourage(dmg, 'Puffer explosion', p);
+        }
+      }
+      // chain damage to other enemies too
+      for (const other of this.room.enemies) {
+        if (other.dead || other === e) continue;
+        if (dist(other.x, other.y, e.x, e.y) < radius) {
+          this.applyDamage(other, dmg * 0.5, false, { x: other.x, y: other.y }, 0, -1, ap);
+        }
+      }
     }
 
     killEnemy(e, ap) {
@@ -865,6 +973,18 @@
         // record replay
         PP_Replay.capture(this.snapshot(), dt);
         if (ap && !frozen) {
+          // Apply Sticky slow patches: dampen popling velocity while inside (§10).
+          if (this.room.stickyPatches && this.room.stickyPatches.length) {
+            let slowFactor = 1;
+            for (const patch of this.room.stickyPatches) {
+              if (dist(ap.x, ap.y, patch.x, patch.y) < patch.r) {
+                slowFactor *= patch.slow;
+              }
+            }
+            if (slowFactor < 1) {
+              ap.vx *= slowFactor; ap.vy *= slowFactor;
+            }
+          }
           PP_Physics.stepPopling(ap, simDt, this);
         }
         this.shotTimer += dt;
@@ -1043,6 +1163,37 @@
           e.x = clamp(e.x + this.rng.range(-60, 60), A.x + e.r, A.x + A.w - e.r);
           e.y = clamp(e.y + this.rng.range(-60, 60), A.y + e.r, A.y + A.h - e.r);
         }
+        // Sticky: leaves a slowing patch each turn (§10).
+        if (e.id === 'sticky') {
+          this.room.stickyPatches = this.room.stickyPatches || [];
+          this.room.stickyPatches.push({
+            x: e.x, y: e.y, r: e.def.patchRadius || 70, life: e.def.patchLife || 2,
+            slow: e.def.patchSlow || 0.5,
+          });
+        }
+        // Snatcher: disables one arena object for a few turns (§10).
+        if (e.id === 'snatcher') {
+          const activeObjs = this.room.objects.filter(o => !o.disabled && o.id !== 'clog');
+          if (activeObjs.length) {
+            const target = this.rng.pick(activeObjs);
+            target.disabled = true;
+            target.disabledTurns = e.def.disableDuration || 2;
+            PP_Effects.floatText(target.x, target.y - 30, 'DISABLED', { color: '#c080ff', size: 14 });
+            PP_Effects.ring(target.x, target.y, { color: '#c080ff', radius: target.r + 12, life: 0.5, width: 4 });
+          }
+        }
+        // Tether Twins: share damage with linked twin (§10).
+        // (Applied at damage time via sharedDamage; here we just maintain link visuals.)
+      }
+      // Tick down sticky patches and disabled objects
+      if (this.room.stickyPatches) {
+        for (let i = this.room.stickyPatches.length - 1; i >= 0; i--) {
+          this.room.stickyPatches[i].life--;
+          if (this.room.stickyPatches[i].life <= 0) this.room.stickyPatches.splice(i, 1);
+        }
+      }
+      for (const o of this.room.objects) {
+        if (o.disabled) { o.disabledTurns--; if (o.disabledTurns <= 0) o.disabled = false; }
       }
       // advance squad readiness
       for (const p of this.squad) {
@@ -1143,8 +1294,14 @@
       this.buildRoom(this.roomIndex);
       this.setState(S.PLAYING);
       this.phase = PH.AIM;
-      // show a brief result toast
-      PP_UI && PP_UI.toast && PP_UI.toast(`Room ${this.roomIndex + 1}/${this.totalRooms}`);
+      // show a brief result toast (with Wild Pocket mutator if active, §13.2 transparency)
+      let msg = `Room ${this.roomIndex + 1}/${this.totalRooms}`;
+      if (this.isWild && this.room && this.room.mutator) {
+        const m = this.room.mutator;
+        const names = m.mutators.map((x) => x.name).join(', ');
+        msg += m.mutators.length ? `   ⚡ ${names}` : '   (no mutators)';
+      }
+      PP_UI && PP_UI.toast && PP_UI.toast(msg);
     }
 
     onRunWon() {

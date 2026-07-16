@@ -77,6 +77,43 @@
       intent: 'countdown', intentRange: 0, intentDamage: 6, moveAfter: false, countdown: 3, weaken: 0.10,
       lesson: 'Target priority.',
     },
+    // ---- Extended family (blueprint §10) ----
+    puffer: {
+      id: 'puffer', name: 'Puffer',
+      color: '#ff8c42', color2: '#ffc8a0', accent: '#7a3f10',
+      hp: 14, armor: 0, radius: 24,
+      intent: 'puffer', intentRange: 0, intentDamage: 10, moveAfter: false,
+      // Inflates when struck repeatedly, then explodes. Control combo order (§10).
+      inflateThreshold: 3, explodeDamage: 18, explodeRadius: 100,
+      lesson: 'Control combo order — don\u2019t over-hit.',
+    },
+    sticky: {
+      id: 'sticky', name: 'Sticky',
+      color: '#7fd6a0', color2: '#c6f0d4', accent: '#1f5e3a',
+      hp: 16, armor: 0, radius: 26,
+      intent: 'sticky', intentRange: 0, intentDamage: 4, moveAfter: false,
+      // Leaves slowing patches each turn. Route planning (§10).
+      patchSlow: 0.5, patchRadius: 70, patchLife: 2,
+      lesson: 'Route planning around slowing patches.',
+    },
+    snatcher: {
+      id: 'snatcher', name: 'Snatcher',
+      color: '#c080ff', color2: '#e4c8ff', accent: '#4a1f7a',
+      hp: 20, armor: 1, radius: 28,
+      intent: 'snatcher', intentRange: 0, intentDamage: 0, moveAfter: false,
+      // Temporarily disables one arena object. Adaptation (§10).
+      disableDuration: 2,
+      lesson: 'Adapt when arena objects are disabled.',
+    },
+    tether: {
+      id: 'tether', name: 'Tether Twins',
+      color: '#ff6b9d', color2: '#ffc4d8', accent: '#7a1f4a',
+      hp: 12, armor: 0, radius: 22,
+      intent: 'tether', intentRange: 0, intentDamage: 6, moveAfter: false,
+      // Shares damage while linked — hit both simultaneously for efficiency (§10).
+      linkRadius: 200, sharedDamage: 0.5,
+      lesson: 'Geometry and simultaneous setup.',
+    },
   };
 
   // Elite modifiers (§10). One used early.

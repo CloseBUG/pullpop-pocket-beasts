@@ -143,6 +143,21 @@
       filterHp: 20,
       exposedDamageMult: 2.5, // bonus damage when boss is in EXPOSED phase
     },
+    // ---- Boss: Chef Char (blueprint §11 World 2 — Ember Pantry) ----
+    // Plates hot zones in patterns; striking hanging pans interrupts the finishing attack.
+    // Phase 0 simplified: cycles COOKING (spawns burner hazards) <-> STUNNED (pans hit).
+    chef_char: {
+      id: 'chef_char', name: 'Chef Char',
+      color: '#ff5a3a', color2: '#ffb085', accent: '#7a1f0a',
+      hp: 160, radius: 54, armor: 2,
+      phaseDuration: 3,    // turns cooking before vulnerable
+      intentDamage: 11,
+      // Spawns 2 burner hot-zone objects each cooking turn that damage poplings standing on them.
+      burnersPerTurn: 2, burnerDamage: 7, burnerRadius: 70,
+      // When STUNNED (after pans struck), takes heavy damage.
+      exposedDamageMult: 2.2,
+      lesson: 'Strike the hanging pans to interrupt the chef\u2019s finishing attack.',
+    },
   };
 
   // ---- Augments (§9) — Phase 0: 12 across Bounce / Buddy / Precision ----
@@ -195,7 +210,8 @@
 
   // ---- Worlds (§11) — Phase 0 greybox single arena; flavor only. ----
   const WORLDS = {
-    jellyyard: { id: 'jellyyard', name: 'Jellyyard', theme: 'garden of lost lunchboxes', color: '#7be0a8', floor: '#23314a' },
+    jellyyard: { id: 'jellyyard', name: 'Jellyyard', theme: 'garden of lost lunchboxes', color: '#7be0a8', floor: '#23334a' },
+    ember_pantry: { id: 'ember_pantry', name: 'Ember Pantry', theme: 'an impossible kitchen inside a coat pocket', color: '#ff8c42', floor: '#3a2317' },
   };
 
   // ---- Status effects (§8) ----

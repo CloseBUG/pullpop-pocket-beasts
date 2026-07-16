@@ -371,7 +371,11 @@
 
     // ---- room generation (data-driven, seeded) ----
     buildRoom(idx) {
-      const world = PP_Content.WORLDS.jellyyard;
+      // World selection: World 2 (Ember Pantry) kicks in for the back half of longer expeditions.
+      // Journey has 5 rooms (0-4) so stays Jellyyard; Wild Pocket room 6+ enters Ember Pantry.
+      const inEmberPantry = idx >= 5;
+      const world = inEmberPantry ? PP_Content.WORLDS.ember_pantry : PP_Content.WORLDS.jellyyard;
+      this.currentWorldId = world.id;
       const a = A;
       this.walls = PP_Physics.arenaWalls(a).map((w, i) => Object.assign({ _id: 'wall' + i }, w));
 
@@ -383,8 +387,12 @@
       // Boss room only on the final room of a Journey expedition (not Daily/Wild/Tower/Playground).
       const isBossRoom = (!this.isDaily && !this.isWild && !this.isTower && !this.isPlayground && idx === this.totalRooms - 1);
       let uid = 0;
-      if (isBossRoom && PP_Content.BOSSES && PP_Content.BOSSES.grumble_hoover) {
-        const bossDef = PP_Content.BOSSES.grumble_hoover;
+      if (isBossRoom && PP_Content.BOSSES) {
+        // Pick boss by world: Ember Pantry → Chef Char, else Grumble Hoover.
+        const bossDef = (this.currentWorldId === 'ember_pantry' && PP_Content.BOSSES.chef_char)
+          ? PP_Content.BOSSES.chef_char
+          : PP_Content.BOSSES.grumble_hoover;
+        if (bossDef) {
         const boss = this.makeBoss(bossDef, a, uid++);
         room.enemies.push(boss);
         room.isBoss = true;
@@ -405,6 +413,7 @@
           r: 22, bumper: true, restitution: 1.15, def: { color: '#7be0a8', color2: '#c6f5d8' },
           sx: 1, sy: 1, _hit: 0,
         });
+        } // end if (bossDef)
       } else {
         // ---- NORMAL ROOM ----
         // Mutators for Wild Pocket (§13.2) + Weekly Tower (§13.4 escalation).
@@ -506,17 +515,18 @@
 
     // ---- Boss creation (blueprint §11: Grumble Hoover) ----
     makeBoss(def, a, uid) {
-      // Boss sits center-top, mouth facing down toward the squad.
+      // Boss sits center-top, facing down toward the squad.
       const cx = a.x + a.w / 2;
       const cy = a.y + a.h * 0.32;
+      // Chef Char uses 'cooking'/'stunned'; Grumble uses 'shielding'/'exposed'.
+      const startPhase = (def.id === 'chef_char') ? 'cooking' : 'shielding';
       const boss = {
         uid: 'boss', id: def.id, def, kind: 'enemy', isBoss: true,
         x: cx, y: cy, vx: 0, vy: 0, r: def.radius,
         hp: def.hp, maxHp: def.hp, armor: def.armor,
-        facing: Math.PI / 2, // mouth points down (toward squad)
-        // Phase machine: 'shielding' (armored, pulls) <-> 'exposed' (vulnerable)
-        bossPhase: 'shielding',
-        phaseCounter: def.phaseDuration, // turns until exposed
+        facing: Math.PI / 2,
+        bossPhase: startPhase,
+        phaseCounter: def.phaseDuration,
         mouthCone: def.mouthCone,
         pullStrength: def.pullStrength,
         intentDamage: def.intentDamage,
@@ -524,7 +534,6 @@
         intentRange: 9999,
         statuses: {}, sx: 1, sy: 1, dead: false,
         exposedDamageMult: def.exposedDamageMult || 2.0,
-        // Clog state: when 2+ heavy objects are near the mouth, boss gets exposed early.
         clogLevel: 0,
       };
       return boss;
@@ -943,11 +952,13 @@
       dmg = Math.max(1, dmg);
       // Boss: takes bonus damage when EXPOSED, reduced when SHIELDING (blueprint §11).
       if (e.isBoss) {
-        if (e.bossPhase === 'exposed') {
+        // Both bosses: take bonus damage when vulnerable (exposed / stunned).
+        const vulnerable = (e.bossPhase === 'exposed' || e.bossPhase === 'stunned');
+        if (vulnerable) {
           dmg *= e.exposedDamageMult;
-          PP_Effects.floatText(e.x, e.y - e.r - 28, 'EXPOSED!', { color: '#ff7b9c', size: 18, big: true, life: 0.8 });
+          PP_Effects.floatText(e.x, e.y - e.r - 28, e.bossPhase === 'stunned' ? 'STUNNED!' : 'EXPOSED!', { color: '#ff7b9c', size: 18, big: true, life: 0.8 });
         } else {
-          dmg *= 0.4; // shielding: armored, glancing hits
+          dmg *= 0.4; // armored phase: glancing hits
         }
       }
       e.hp -= dmg;
@@ -1253,6 +1264,52 @@
           continue;
         }
 
+        // ---- Chef Char boss turn (blueprint §11 World 2) ----
+        if (e.isBoss && e.id === 'chef_char') {
+          if (e.bossPhase === 'cooking') {
+            // Plate hot zones: spawn burner hazards that damage poplings standing on them.
+            const burners = e.def.burnersPerTurn || 2;
+            for (let b = 0; b < burners; b++) {
+              const bx = this.rng.range(a.x + 80, a.x + a.w - 80);
+              const by = this.rng.range(a.y + 80, a.y + a.h - 200);
+              room.burners = room.burners || [];
+              room.burners.push({ x: bx, y: by, r: e.def.burnerRadius || 70, life: 2, damage: e.def.burnerDamage || 7 });
+              // damage any popling already on the burner
+              for (const p of this.squad) {
+                if (dist(p.x, p.y, bx, by) < (e.def.burnerRadius || 70)) {
+                  this.hurtCourage(e.def.burnerDamage || 7, 'Chef Char burner', p);
+                }
+              }
+              PP_Effects.burst(bx, by, 0, -1, { count: 8, color: '#ff8c42', speed: 200, size: 4, life: 0.4 });
+            }
+            PP_Effects.floatText(e.x, e.y - e.r - 16, 'PLATING!', { color: '#ff5a3a', size: 16 });
+            // Check if a "pan" object (clog) struck the chef → become stunned
+            let panHits = 0;
+            for (const o of room.objects) {
+              if (o.id !== 'clog') continue;
+              if (dist(o.x, o.y, e.x, e.y) < e.r + 50) panHits++;
+            }
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0 || panHits >= 1) {
+              e.bossPhase = 'stunned';
+              e.phaseCounter = 2;
+              e.armor = 0;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'STUNNED!', { color: '#ffd166', size: 22, big: true, life: 1.2 });
+              PP_Effects.ring(e.x, e.y, { color: '#ffd166', radius: e.r, life: 0.6, width: 8 });
+              PP_Effects.shake(6); PP_Effects.flash(0.3);
+            }
+          } else if (e.bossPhase === 'stunned') {
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0) {
+              e.bossPhase = 'cooking';
+              e.phaseCounter = e.def.phaseDuration;
+              e.armor = e.def.armor;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'BACK TO COOKING', { color: '#ff5a3a', size: 16 });
+            }
+          }
+          continue;
+        }
+
         if (e.intent === 'locked') {
           // damage poplings in any locked zone
           for (const z of room.lockedZones) {
@@ -1327,11 +1384,17 @@
         // Tether Twins: share damage with linked twin (§10).
         // (Applied at damage time via sharedDamage; here we just maintain link visuals.)
       }
-      // Tick down sticky patches and disabled objects
+      // Tick down sticky patches, burners, and disabled objects
       if (this.room.stickyPatches) {
         for (let i = this.room.stickyPatches.length - 1; i >= 0; i--) {
           this.room.stickyPatches[i].life--;
           if (this.room.stickyPatches[i].life <= 0) this.room.stickyPatches.splice(i, 1);
+        }
+      }
+      if (this.room.burners) {
+        for (let i = this.room.burners.length - 1; i >= 0; i--) {
+          this.room.burners[i].life--;
+          if (this.room.burners[i].life <= 0) this.room.burners.splice(i, 1);
         }
       }
       for (const o of this.room.objects) {

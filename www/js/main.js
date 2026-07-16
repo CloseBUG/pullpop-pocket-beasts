@@ -228,6 +228,26 @@
       }
     }
 
+    // Chef Char burner hot zones (blueprint §11 World 2)
+    if (game.room.burners) {
+      const t = PP_Util.now() / 1000;
+      for (const b of game.room.burners) {
+        const flicker = 0.6 + 0.4 * Math.sin(t * 8 + b.x);
+        ctx.save();
+        ctx.fillStyle = `rgba(255,90,58,${0.15 * flicker})`;
+        ctx.strokeStyle = `rgba(255,140,66,${0.6 * flicker})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // flame flickers
+        ctx.fillStyle = `rgba(255,200,100,${0.5 * flicker})`;
+        for (let i = 0; i < 3; i++) {
+          const fa = (i / 3) * Math.PI * 2 + t * 3;
+          ctx.beginPath(); ctx.arc(b.x + Math.cos(fa) * b.r * 0.4, b.y + Math.sin(fa) * b.r * 0.4, 5 * flicker, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
     // objects (bumpers)
     for (const o of game.room.objects) {
       ctx.save();

@@ -53,6 +53,23 @@
     });
     on('#btn-sanctuary', 'click', () => { PP_Audio.uiClick(); showSanctuary(); });
     on('#btn-sanctuary-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
+    on('#btn-wardrobe-open', 'click', () => { PP_Audio.uiClick(); showWardrobe(); });
+    on('#btn-share', 'click', () => { PP_Audio.uiClick(); showShare(); });
+    on('#btn-share-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
+    on('#btn-share-copy', 'click', () => {
+      PP_Audio.uiClick();
+      const inp = document.getElementById('share-code-input');
+      if (inp && inp.select) { inp.select(); document.execCommand && document.execCommand('copy'); PP_UI.toast('Code copied!'); }
+    });
+    on('#btn-share-load', 'click', () => {
+      PP_Audio.uiClick();
+      const code = (document.getElementById('share-code-load') || {}).value || '';
+      if (!code.trim()) { PP_UI.toast('Enter a code first'); return; }
+      const ok = game.startFromShareCode(code);
+      if (ok) { hideAll(); }
+      else { PP_Audio.bad(); PP_UI.toast('Invalid code'); }
+    });
+    on('#btn-wardrobe-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-sanctuary'); });
     on('#btn-howto', 'click', () => { PP_Audio.uiClick(); hideAll(); show('screen-howto'); });
     on('#btn-howto-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     // Show today's daily code on the title button.
@@ -184,6 +201,59 @@
         fEl.appendChild(card);
       });
     }
+  }
+
+  // ---- Wardrobe (blueprint §16 cosmetics, §19) ----
+  function showWardrobe() {
+    hideAll(); show('screen-wardrobe');
+    setText('#wardrobe-sparks', '✨ Sparks: ' + game.sparks);
+    const cont = document.getElementById('wardrobe-cosmetics');
+    if (!cont) return;
+    cont.innerHTML = '';
+    const all = PP_Content.COSMETICS || [];
+    all.forEach((c) => {
+      const owned = game.ownedCosmetics.includes(c.id);
+      const equipped = (c.type === 'palette' && game.equippedCosmetics[c.popling] === c.id)
+                    || (c.type === 'trail' && game.equippedCosmetics.trail === c.id);
+      const card = document.createElement('div');
+      card.className = 'aug-card' + (equipped ? ' rare' : '');
+      const poplingName = c.popling ? PP_Content.POPLINGS[c.popling].name : 'All';
+      card.innerHTML = `
+        <div class="ac-head">
+          <div class="ac-icon" style="background:${c.color || '#888'};color:#fff;">●</div>
+          <div>
+            <div class="ac-name">${c.name}</div>
+            <div class="ac-family">${c.type.toUpperCase()} · ${poplingName}</div>
+          </div>
+        </div>
+        <div class="ac-desc">${equipped ? 'EQUIPPED' : owned ? 'Tap to equip' : '✨ ' + c.cost}</div>`;
+      card.addEventListener('click', () => {
+        PP_Audio.uiClick();
+        if (!owned) {
+          const res = game.buyCosmetic(c.id);
+          if (res.ok) { PP_Audio.good(); game.equipCosmetic(c.id); PP_UI.toast(c.name + ' bought + equipped!'); }
+          else { PP_Audio.bad(); PP_UI.toast(res.reason); }
+        } else {
+          const res = game.equipCosmetic(c.id);
+          if (res.ok) { PP_UI.toast(c.name + ' equipped'); }
+        }
+        showWardrobe();
+      });
+      cont.appendChild(card);
+    });
+  }
+
+  // ---- Share / challenge (blueprint §24) ----
+  function showShare() {
+    hideAll(); show('screen-share');
+    // Generate a share code for a fresh challenge (default squad + random seed).
+    const seed = ((Math.random() * 1e9) | 0) || 12345;
+    const squad = (game.selectedSquad && game.selectedSquad.length === 3) ? game.selectedSquad : ['pogo', 'cinder', 'mosslug'];
+    const code = PP_Game.encodeShareCode(seed, squad, 'journey');
+    const inp = document.getElementById('share-code-input');
+    if (inp) inp.value = code;
+    const loadInp = document.getElementById('share-code-load');
+    if (loadInp) loadInp.value = '';
   }
 
   // ---- Pause ----
@@ -372,7 +442,7 @@
     init, showTitle, togglePause,
     showAugment, bindAugmentUI,
     showSquadSelect, bindSquadUI,
-    showSanctuary,
+    showSanctuary, showWardrobe, showShare,
     showResult, showEnd, toast,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

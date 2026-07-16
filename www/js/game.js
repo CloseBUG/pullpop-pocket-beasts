@@ -56,6 +56,8 @@
       this.sparks = 0;          // soft currency (§15.1)
       this.friendship = {};     // { poplingId: level 1-10 } (§7)
       this.sanctuaryRooms = []; // restored rooms (§14)
+      this.ownedCosmetics = []; // owned cosmetic ids (§16)
+      this.equippedCosmetics = {}; // { poplingId: paletteId, trail: trailId } (§16)
       this.loadMeta();
 
       this.aim = null; // current aim info for preview
@@ -119,6 +121,8 @@
           const m = JSON.parse(raw);
           this.sparks = m.sparks || 0;
           this.friendship = m.friendship || {};
+          this.ownedCosmetics = m.ownedCosmetics || [];
+          this.equippedCosmetics = m.equippedCosmetics || {};
         }
       } catch (e) {}
       // Init friendship for all Poplings at level 1 (§7).
@@ -132,6 +136,7 @@
       try {
         localStorage.setItem('pullpop_meta', JSON.stringify({
           sparks: this.sparks, friendship: this.friendship,
+          ownedCosmetics: this.ownedCosmetics, equippedCosmetics: this.equippedCosmetics,
         }));
       } catch (e) {}
     }
@@ -170,6 +175,83 @@
       this.sanctuaryRooms.push(roomId);
       this.saveMeta();
       return { ok: true, cost };
+    }
+
+    // ---- Cosmetics (blueprint §16, §19) ----
+    buyCosmetic(cosmeticId) {
+      if (this.ownedCosmetics.includes(cosmeticId)) return { ok: false, reason: 'already owned' };
+      const def = PP_Content.COSMETICS.find((c) => c.id === cosmeticId);
+      if (!def) return { ok: false, reason: 'not found' };
+      if (this.sparks < def.cost) return { ok: false, reason: 'not enough Sparks' };
+      this.sparks -= def.cost;
+      this.ownedCosmetics.push(cosmeticId);
+      this.saveMeta();
+      return { ok: true, cost: def.cost };
+    }
+    equipCosmetic(cosmeticId) {
+      const def = PP_Content.COSMETICS.find((c) => c.id === cosmeticId);
+      if (!def) return { ok: false, reason: 'not found' };
+      if (!this.ownedCosmetics.includes(cosmeticId)) return { ok: false, reason: 'not owned' };
+      if (def.type === 'palette') this.equippedCosmetics[def.popling] = cosmeticId;
+      else if (def.type === 'trail') this.equippedCosmetics.trail = cosmeticId;
+      this.saveMeta();
+      return { ok: true };
+    }
+    // Resolve the effective color for a popling (cosmetic override or default).
+    poplingColor(poplingId) {
+      const equipped = this.equippedCosmetics[poplingId];
+      if (equipped) {
+        const c = PP_Content.COSMETICS.find((x) => x.id === equipped);
+        if (c) return { color: c.color, color2: c.color2 };
+      }
+      const def = PP_Content.POPLINGS[poplingId];
+      return def ? { color: def.color, color2: def.color2 } : { color: '#fff', color2: '#ddd' };
+    }
+
+    // ---- Replay / challenge sharing (blueprint §24) ----
+    // Generate a compact share code reproducing world, squad, seed (§24 shared challenge code).
+    static encodeShareCode(seed, squadIds, mode) {
+      const s = (seed >>> 0).toString(36).toUpperCase().padStart(6, '0');
+      const m = (mode || 'J').charAt(0).toUpperCase();
+      const squad = squadIds.map((id) => id.charAt(0).toUpperCase()).join('');
+      return `P0P-${m}${s}-${squad}`;
+    }
+    static decodeShareCode(code) {
+      try {
+        const parts = code.trim().toUpperCase().split('-');
+        if (parts.length < 3 || parts[0] !== 'P0P') return null;
+        const modeChar = parts[1].charAt(0);
+        const seed = parseInt(parts[1].slice(1), 36);
+        const squadInitials = parts[2].split('');
+        // Map initials back to popling ids (best-effort).
+        const allIds = Object.keys(PP_Content.POPLINGS);
+        const squadIds = squadInitials.map((ch) => allIds.find((id) => id.charAt(0).toUpperCase() === ch)).filter(Boolean);
+        const modeMap = { J: 'journey', W: 'wild', T: 'tower', D: 'daily' };
+        return { seed, squadIds, mode: modeMap[modeChar] || 'journey' };
+      } catch (e) { return null; }
+    }
+    startFromShareCode(code) {
+      const decoded = PP_Game.decodeShareCode(code);
+      if (!decoded || decoded.squadIds.length < 1) return false;
+      this.selectedSquad = decoded.squadIds.slice(0, 3);
+      // backfill if needed
+      while (this.selectedSquad.length < 3) {
+        const f = ['pogo', 'cinder', 'mosslug'][this.selectedSquad.length];
+        if (!this.selectedSquad.includes(f)) this.selectedSquad.push(f); else break;
+      }
+      this.runSeed = decoded.seed || ((Math.random() * 1e9) | 0);
+      this.rng = makeRng(this.runSeed);
+      this.isDaily = false; this.isWild = (decoded.mode === 'wild'); this.isTower = (decoded.mode === 'tower'); this.isPlayground = false;
+      this.squad = this.buildStartingSquad();
+      this.courage = Cfg.SQUAD.startCourage; this.maxCourage = Cfg.SQUAD.startCourage;
+      this.shield = 0; this.buttons = 0; this.augments = [];
+      this.totalRooms = this.isTower ? 10 : (this.isWild ? 12 : 5);
+      this.roomIndex = 0; this._rerollsLeft = 1;
+      this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
+      this.buildRoom(0);
+      this.setState(S.PLAYING); this.phase = PH.AIM;
+      PP_Replay.reset(); PP_Replay.startRecording(); PP_Effects.clearAll();
+      return true;
     }
 
     applySettingsToSystems() {
@@ -1887,5 +1969,6 @@
 
   global.PP_Game = { Game, States: S, Phases: PH,
     dailySeed: Game.dailySeed, dailyCode: Game.dailyCode,
-    weeklyTowerSeed: Game.weeklyTowerSeed };
+    weeklyTowerSeed: Game.weeklyTowerSeed,
+    encodeShareCode: Game.encodeShareCode, decodeShareCode: Game.decodeShareCode };
 })(typeof window !== 'undefined' ? window : globalThis);

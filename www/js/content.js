@@ -349,7 +349,32 @@
     mark: { id: 'mark', name: 'Mark', color: '#ff7b9c', icon: '◆', critBonus: 1, scoreBonus: 1 },
   };
 
+  // ---- Cosmetics (blueprint §16 monetization, §19 art tiers) ----
+  // Palette tier = color/material only (§19: "one artist day or less").
+  // No combat power (§37 rule 6). Bought with Sparks (earned) or just unlocked.
+  const COSMETICS = [
+    // Pogo palettes
+    { id: 'pogo_sunset', popling: 'pogo', name: 'Sunset', type: 'palette', cost: 30, color: '#ff6b4a', color2: '#ffc4a0' },
+    { id: 'pogo_ocean', popling: 'pogo', name: 'Ocean', type: 'palette', cost: 30, color: '#4a9bff', color2: '#a0c4ff' },
+    { id: 'pogo_mint', popling: 'pogo', name: 'Mint', type: 'palette', cost: 40, color: '#4ad6a0', color2: '#a0f0c4' },
+    // Cinder palettes
+    { id: 'cinder_ember', popling: 'cinder', name: 'Ember', type: 'palette', cost: 30, color: '#ff4a2a', color2: '#ffa080' },
+    { id: 'cinder_violet', popling: 'cinder', name: 'Violet', type: 'palette', cost: 40, color: '#9b4aff', color2: '#d4a0ff' },
+    // Mosslug palettes
+    { id: 'mosslug_autumn', popling: 'mosslug', name: 'Autumn', type: 'palette', cost: 30, color: '#d6a04a', color2: '#f0d4a0' },
+    { id: 'mosslug_rose', popling: 'mosslug', name: 'Rose', type: 'palette', cost: 40, color: '#ff6b9d', color2: '#ffc4d8' },
+    // Volty palettes
+    { id: 'volty_storm', popling: 'volty', name: 'Storm', type: 'palette', cost: 35, color: '#4a7aff', color2: '#a0b8ff' },
+    // Pebblit palettes
+    { id: 'pebblit_moss', popling: 'pebblit', name: 'Moss', type: 'palette', cost: 35, color: '#7ba85a', color2: '#c4dca0' },
+    // Glim palettes
+    { id: 'glim_gold', popling: 'glim', name: 'Gold', type: 'palette', cost: 40, color: '#ffd700', color2: '#fff0a0' },
+    // Trails (§16: trails are cosmetic)
+    { id: 'trail_sparkle', name: 'Sparkle Trail', type: 'trail', cost: 60, color: '#fff5b0' },
+    { id: 'trail_rainbow', name: 'Rainbow Trail', type: 'trail', cost: 80, color: 'rainbow' },
+  ];
+
   global.PP_Content = {
-    POPLINGS, ENEMIES, ELITE_MODS, BOSSES, AUGMENTS, WORLDS, STATUSES,
+    POPLINGS, ENEMIES, ELITE_MODS, BOSSES, AUGMENTS, WORLDS, STATUSES, COSMETICS,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

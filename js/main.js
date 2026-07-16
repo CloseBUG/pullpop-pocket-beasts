@@ -208,6 +208,26 @@
 
     PP_Render.drawArena(game);
 
+    // Sticky slow patches (blueprint §10)
+    if (game.room.stickyPatches) {
+      const t = PP_Util.now() / 1000;
+      for (const patch of game.room.stickyPatches) {
+        ctx.save();
+        const pulse = 0.5 + 0.5 * Math.sin(t * 2);
+        ctx.fillStyle = `rgba(127,214,160,${0.12 + pulse * 0.08})`;
+        ctx.strokeStyle = `rgba(127,214,160,${0.3 + pulse * 0.2})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(patch.x, patch.y, patch.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // sticky drip texture
+        ctx.fillStyle = `rgba(127,214,160,${0.2})`;
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + t;
+          ctx.beginPath(); ctx.arc(patch.x + Math.cos(a) * patch.r * 0.6, patch.y + Math.sin(a) * patch.r * 0.6, 6, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
     // objects (bumpers)
     for (const o of game.room.objects) {
       ctx.save();
@@ -222,6 +242,27 @@
 
     // enemies
     for (const e of game.room.enemies) PP_Render.drawEnemy(e);
+
+    // Tether Twin link beam (blueprint §10): draw a chain between linked twins.
+    const tethers = game.room.enemies.filter((e) => !e.dead && e.id === 'tether');
+    if (tethers.length >= 2) {
+      const t = PP_Util.now() / 1000;
+      ctx.save();
+      for (let i = 0; i < tethers.length; i++) {
+        for (let j = i + 1; j < tethers.length; j++) {
+          const a = tethers[i], b = tethers[j];
+          if (PP_Util.dist(a.x, a.y, b.x, b.y) <= (a.def.linkRadius || 200)) {
+            const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+            ctx.strokeStyle = `rgba(255,107,157,${0.4 + pulse * 0.3})`;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 20;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        }
+      }
+      ctx.restore();
+    }
 
     // resting poplings (buddies) draw as full poplings
     for (const p of game.squad) {

@@ -38,6 +38,10 @@
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
       hideAll(); game.startDaily();
     });
+    on('#btn-wild', 'click', () => {
+      PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
+      hideAll(); game.startWildPocket();
+    });
     on('#btn-howto', 'click', () => { PP_Audio.uiClick(); hideAll(); show('screen-howto'); });
     on('#btn-howto-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     // Show today's daily code on the title button.

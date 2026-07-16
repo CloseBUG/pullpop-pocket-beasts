@@ -158,6 +158,23 @@
       exposedDamageMult: 2.2,
       lesson: 'Strike the hanging pans to interrupt the chef\u2019s finishing attack.',
     },
+    // ---- Boss: Tanktopus (blueprint §11 World 3 — Bubbleworks) ----
+    // Arms divide the arena. Players pop pressure bubbles in the correct sequence
+    // to rotate the arms and expose its center.
+    // Phase 0 simplified: GUARDED (armored, arms block) <-> EXPOSED (center open).
+    tanktopus: {
+      id: 'tanktopus', name: 'Tanktopus',
+      color: '#5ec8e0', color2: '#a8e6f0', accent: '#0f3a4a',
+      hp: 180, radius: 60, armor: 3,
+      phaseDuration: 3,
+      intentDamage: 12,
+      // Spawns pressure-bubble objects each guarded turn that must be popped to expose.
+      bubblesPerTurn: 3, bubbleHp: 8,
+      // Tidal surge: damages all poplings each guarded turn.
+      surgeDamage: 8,
+      exposedDamageMult: 2.3,
+      lesson: 'Pop the pressure bubbles in sequence to expose the center.',
+    },
   };
 
   // ---- Augments (§9) — Phase 0: 12 across Bounce / Buddy / Precision ----
@@ -212,6 +229,7 @@
   const WORLDS = {
     jellyyard: { id: 'jellyyard', name: 'Jellyyard', theme: 'garden of lost lunchboxes', color: '#7be0a8', floor: '#23334a' },
     ember_pantry: { id: 'ember_pantry', name: 'Ember Pantry', theme: 'an impossible kitchen inside a coat pocket', color: '#ff8c42', floor: '#3a2317' },
+    bubbleworks: { id: 'bubbleworks', name: 'Bubbleworks', theme: 'a flooded workshop inside a glass marble', color: '#5ec8e0', floor: '#173040' },
   };
 
   // ---- Status effects (§8) ----

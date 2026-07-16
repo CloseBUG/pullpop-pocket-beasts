@@ -371,10 +371,15 @@
 
     // ---- room generation (data-driven, seeded) ----
     buildRoom(idx) {
-      // World selection: World 2 (Ember Pantry) kicks in for the back half of longer expeditions.
-      // Journey has 5 rooms (0-4) so stays Jellyyard; Wild Pocket room 6+ enters Ember Pantry.
-      const inEmberPantry = idx >= 5;
-      const world = inEmberPantry ? PP_Content.WORLDS.ember_pantry : PP_Content.WORLDS.jellyyard;
+      // World selection across expeditions:
+      //  rooms 0-4  = Jellyyard (World 1)
+      //  rooms 5-10 = Ember Pantry (World 2)
+      //  rooms 11+  = Bubbleworks (World 3)
+      const inEmberPantry = idx >= 5 && idx < 11;
+      const inBubbleworks = idx >= 11;
+      const world = inBubbleworks ? PP_Content.WORLDS.bubbleworks
+                  : inEmberPantry ? PP_Content.WORLDS.ember_pantry
+                  : PP_Content.WORLDS.jellyyard;
       this.currentWorldId = world.id;
       const a = A;
       this.walls = PP_Physics.arenaWalls(a).map((w, i) => Object.assign({ _id: 'wall' + i }, w));
@@ -388,9 +393,9 @@
       const isBossRoom = (!this.isDaily && !this.isWild && !this.isTower && !this.isPlayground && idx === this.totalRooms - 1);
       let uid = 0;
       if (isBossRoom && PP_Content.BOSSES) {
-        // Pick boss by world: Ember Pantry → Chef Char, else Grumble Hoover.
-        const bossDef = (this.currentWorldId === 'ember_pantry' && PP_Content.BOSSES.chef_char)
-          ? PP_Content.BOSSES.chef_char
+        // Pick boss by world: Bubbleworks → Tanktopus, Ember Pantry → Chef Char, else Grumble Hoover.
+        const bossDef = (this.currentWorldId === 'bubbleworks' && PP_Content.BOSSES.tanktopus) ? PP_Content.BOSSES.tanktopus
+          : (this.currentWorldId === 'ember_pantry' && PP_Content.BOSSES.chef_char) ? PP_Content.BOSSES.chef_char
           : PP_Content.BOSSES.grumble_hoover;
         if (bossDef) {
         const boss = this.makeBoss(bossDef, a, uid++);
@@ -519,7 +524,10 @@
       const cx = a.x + a.w / 2;
       const cy = a.y + a.h * 0.32;
       // Chef Char uses 'cooking'/'stunned'; Grumble uses 'shielding'/'exposed'.
-      const startPhase = (def.id === 'chef_char') ? 'cooking' : 'shielding';
+      // Each boss has its own phase names; default to shielding/exposed.
+      const startPhase = (def.id === 'chef_char') ? 'cooking'
+                       : (def.id === 'tanktopus') ? 'guarded'
+                       : 'shielding';
       const boss = {
         uid: 'boss', id: def.id, def, kind: 'enemy', isBoss: true,
         x: cx, y: cy, vx: 0, vy: 0, r: def.radius,
@@ -760,7 +768,7 @@
         out.push(Object.assign({}, p, { kind: 'buddy', uid: p.uid, r: p.r }));
         // we use a shallow clone so physics doesn't move the real popling
       }
-      for (const o of this.room.objects) out.push(o);
+      for (const o of this.room.objects) { if (!o.dead) out.push(o); }
       return out;
     }
 
@@ -936,6 +944,20 @@
 
       if (ev.kind === 'object') {
         const o = ev.target;
+        // Pressure bubble (Tanktopus, §11 W3): takes damage and pops.
+        if (o.bubble && !o.dead) {
+          o.bubbleHp -= (ap ? ap.def.power : 10);
+          PP_Audio.pop({ force: 0.5 });
+          PP_Effects.burst(o.x, o.y, ev.nx, ev.ny, { count: 10, color: '#a8e6f0', speed: 300, size: 5, life: 0.4 });
+          PP_Effects.shake(2);
+          if (o.bubbleHp <= 0) {
+            o.dead = true;
+            PP_Effects.ring(o.x, o.y, { color: '#5ec8e0', radius: o.r + 12, life: 0.4, width: 5 });
+            PP_Effects.floatText(o.x, o.y - 20, 'POP!', { color: '#5ec8e0', size: 16 });
+          }
+          this.bumpCombo();
+          return;
+        }
         if (o.bumper) {
           // bumper restitution handled in physics; add flair
           PP_Audio.comboHit(ss.combo, 'object');
@@ -953,7 +975,7 @@
       // Boss: takes bonus damage when EXPOSED, reduced when SHIELDING (blueprint §11).
       if (e.isBoss) {
         // Both bosses: take bonus damage when vulnerable (exposed / stunned).
-        const vulnerable = (e.bossPhase === 'exposed' || e.bossPhase === 'stunned');
+        const vulnerable = (e.bossPhase === 'exposed' || e.bossPhase === 'stunned' || e.bossPhase === 'popped');
         if (vulnerable) {
           dmg *= e.exposedDamageMult;
           PP_Effects.floatText(e.x, e.y - e.r - 28, e.bossPhase === 'stunned' ? 'STUNNED!' : 'EXPOSED!', { color: '#ff7b9c', size: 18, big: true, life: 0.8 });
@@ -1305,6 +1327,53 @@
               e.phaseCounter = e.def.phaseDuration;
               e.armor = e.def.armor;
               PP_Effects.floatText(e.x, e.y - e.r - 20, 'BACK TO COOKING', { color: '#ff5a3a', size: 16 });
+            }
+          }
+          continue;
+        }
+
+        // ---- Tanktopus boss turn (blueprint §11 World 3) ----
+        if (e.isBoss && e.id === 'tanktopus') {
+          if (e.bossPhase === 'guarded') {
+            // Tidal surge: damage all poplings.
+            for (const p of this.squad) {
+              if (p.state === 'dead') continue;
+              this.hurtCourage(e.def.surgeDamage || 8, 'Tanktopus surge', p);
+            }
+            PP_Effects.ring(e.x, e.y, { color: '#5ec8e0', radius: 400, life: 0.5, width: 6 });
+            // Spawn pressure bubbles (objects the player pops to expose the center).
+            const n = e.def.bubblesPerTurn || 3;
+            for (let bidx = 0; bidx < n; bidx++) {
+              const ang = (bidx / n) * TAU;
+              const bx = clamp(e.x + Math.cos(ang) * 160, a.x + 40, a.x + a.w - 40);
+              const by = clamp(e.y + Math.sin(ang) * 160, a.y + 40, a.y + a.h - 40);
+              room.objects.push({
+                uid: 'bubble' + room.objects.length, kind: 'object', id: 'bubble',
+                x: bx, y: by, r: 24, bumper: true, restitution: 1.1,
+                bubble: true, bubbleHp: e.def.bubbleHp || 8,
+                def: { color: '#5ec8e0', color2: '#a8e6f0' }, sx: 1, sy: 1, _hit: 0,
+              });
+            }
+            // Check if all bubbles popped → expose
+            const bubblesLeft = room.objects.filter(o => o.id === 'bubble' && !o.dead).length;
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0 || bubblesLeft === 0) {
+              e.bossPhase = 'popped';
+              e.phaseCounter = 2;
+              e.armor = 0;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'CENTER EXPOSED!', { color: '#ffd166', size: 22, big: true, life: 1.2 });
+              PP_Effects.ring(e.x, e.y, { color: '#ffd166', radius: e.r, life: 0.6, width: 8 });
+              PP_Effects.shake(6); PP_Effects.flash(0.3);
+            } else {
+              PP_Effects.floatText(e.x, e.y - e.r - 16, bubblesLeft + ' bubbles left', { color: '#5ec8e0', size: 14 });
+            }
+          } else if (e.bossPhase === 'popped') {
+            e.phaseCounter -= 1;
+            if (e.phaseCounter <= 0) {
+              e.bossPhase = 'guarded';
+              e.phaseCounter = e.def.phaseDuration;
+              e.armor = e.def.armor;
+              PP_Effects.floatText(e.x, e.y - e.r - 20, 'ARMS UP', { color: '#5ec8e0', size: 16 });
             }
           }
           continue;

@@ -52,6 +52,12 @@
       this.roomClearTime = 0;
       this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
 
+      // ---- Meta progression (blueprint §14 Sanctuary, §7 Friendship, §15.1 Sparks) ----
+      this.sparks = 0;          // soft currency (§15.1)
+      this.friendship = {};     // { poplingId: level 1-10 } (§7)
+      this.sanctuaryRooms = []; // restored rooms (§14)
+      this.loadMeta();
+
       this.aim = null; // current aim info for preview
       this._pendingAugmentOffer = null;
       this._rerollsLeft = 1;
@@ -104,6 +110,68 @@
     onAppForeground() {
       // A resumed run is summarized on the title screen; no forced reload here.
     }
+
+    // ---- Meta progression persistence (blueprint §14, §7, §15.1) ----
+    loadMeta() {
+      try {
+        const raw = localStorage.getItem('pullpop_meta');
+        if (raw) {
+          const m = JSON.parse(raw);
+          this.sparks = m.sparks || 0;
+          this.friendship = m.friendship || {};
+        }
+      } catch (e) {}
+      // Init friendship for all Poplings at level 1 (§7).
+      if (PP_Content && PP_Content.POPLINGS) {
+        Object.keys(PP_Content.POPLINGS).forEach((id) => {
+          if (!this.friendship[id]) this.friendship[id] = 1;
+        });
+      }
+    }
+    saveMeta() {
+      try {
+        localStorage.setItem('pullpop_meta', JSON.stringify({
+          sparks: this.sparks, friendship: this.friendship,
+        }));
+      } catch (e) {}
+    }
+    // Friendship XP gain (§7): Poplings in the squad gain XP from rooms cleared.
+    grantFriendship(squadIds, roomsCleared) {
+      const xpPerRoom = 1; // gentle; level 10 reachable over many runs
+      let leveledUp = [];
+      for (const id of squadIds) {
+        const cur = this.friendship[id] || 1;
+        const next = Math.min(10, cur + roomsCleared * xpPerRoom); // §7: 10 levels
+        if (next > cur) {
+          this.friendship[id] = next;
+          if (next === 10 && cur < 10) leveledUp.push(id + ' → MAX!');
+          else if (next > cur) leveledUp.push(id + ' → Lv ' + next);
+        }
+      }
+      this.saveMeta();
+      return leveledUp;
+    }
+    // Sparks (§15.1): earned from first room clear, expedition completion, combo milestones.
+    grantSparks(amount, cause) {
+      this.sparks += amount;
+      this.saveMeta();
+      return amount;
+    }
+    // Sanctuary room restoration (§14): unlock rooms with Sparks.
+    sanctuaryRoomCost(roomId) {
+      const costs = { launch_lawn: 0, tinker_cart: 50, cozy_nook: 120, replay_pond: 200, wardrobe_tent: 300, festival_dock: 500 };
+      return costs[roomId] != null ? costs[roomId] : 100;
+    }
+    buySanctuaryRoom(roomId) {
+      if (this.sanctuaryRooms.includes(roomId)) return { ok: false, reason: 'already owned' };
+      const cost = this.sanctuaryRoomCost(roomId);
+      if (this.sparks < cost) return { ok: false, reason: 'not enough Sparks' };
+      this.sparks -= cost;
+      this.sanctuaryRooms.push(roomId);
+      this.saveMeta();
+      return { ok: true, cost };
+    }
+
     applySettingsToSystems() {
       PP_Audio.applySettings(this.settings);
       PP_Haptics.applySettings(this.settings);
@@ -1779,6 +1847,14 @@
         this.saveDailyBest(this.dailyCode, score);
         this.dailyScore = score;
         this.dailyBest = this.loadDailyBest(this.dailyCode);
+      }
+      // Meta rewards (§14, §7, §15.1): Sparks from completion + Friendship for squad.
+      if (!this.isPlayground) {
+        const sparksEarned = 10 + this.runStats.roomsCleared * 5 + Math.floor(this.runStats.bestCombo / 2);
+        this.grantSparks(sparksEarned, 'expedition complete');
+        const squadIds = this.squad.map((p) => p.id);
+        this._lastFriendshipGains = this.grantFriendship(squadIds, this.runStats.roomsCleared);
+        this._lastSparksEarned = sparksEarned;
       }
       this.setState(S.END);
       PP_UI.showEnd(true, this);

@@ -51,6 +51,8 @@
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
       showSquadSelect('playground');
     });
+    on('#btn-sanctuary', 'click', () => { PP_Audio.uiClick(); showSanctuary(); });
+    on('#btn-sanctuary-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     on('#btn-howto', 'click', () => { PP_Audio.uiClick(); hideAll(); show('screen-howto'); });
     on('#btn-howto-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     // Show today's daily code on the title button.
@@ -116,6 +118,72 @@
       else if (pendingMode === 'playground') game.startPlayground();
       else game.startRun();
     });
+  }
+
+  // ---- Sanctuary (blueprint §14) ----
+  const SANCTUARY_ROOMS = [
+    { id: 'launch_lawn', name: 'Launch Lawn', icon: '🌱', desc: 'Squad selection. Poplings practice bouncing.' },
+    { id: 'tinker_cart', name: 'Tinker Cart', icon: '🛒', desc: 'One run reroll. Tinkerer animations and props.' },
+    { id: 'cozy_nook', name: 'Cozy Nook', icon: '🛏️', desc: 'Friendship quests. Favorite Popling sleeps and reacts.' },
+    { id: 'replay_pond', name: 'Replay Pond', icon: '🎞️', desc: 'Replay and sharing. Memories appear as reflections.' },
+    { id: 'wardrobe_tent', name: 'Wardrobe Tent', icon: '👗', desc: 'Cosmetic preview. Characters model owned items.' },
+    { id: 'festival_dock', name: 'Festival Dock', icon: '🎉', desc: 'Seasonal events. Shows upcoming visitors and decorations.' },
+  ];
+
+  function showSanctuary() {
+    hideAll(); show('screen-sanctuary');
+    setText('#sanctuary-sparks', '✨ Sparks: ' + game.sparks);
+    // Rooms
+    const roomsEl = document.getElementById('sanctuary-rooms');
+    if (roomsEl) {
+      roomsEl.innerHTML = '';
+      for (const r of SANCTUARY_ROOMS) {
+        const owned = game.sanctuaryRooms.includes(r.id);
+        const cost = game.sanctuaryRoomCost(r.id);
+        const card = document.createElement('div');
+        card.className = 'aug-card' + (owned ? ' rare' : '');
+        card.innerHTML = `
+          <div class="ac-head">
+            <div class="ac-icon">${r.icon}</div>
+            <div>
+              <div class="ac-name">${r.name}</div>
+              <div class="ac-family">${owned ? 'RESTORED' : '✨ ' + cost}</div>
+            </div>
+          </div>
+          <div class="ac-desc">${r.desc}</div>`;
+        if (!owned) {
+          card.addEventListener('click', () => {
+            const res = game.buySanctuaryRoom(r.id);
+            if (res.ok) { PP_Audio.good(); PP_UI.toast(r.name + ' restored!'); }
+            else { PP_Audio.bad(); PP_UI.toast(res.reason); }
+            showSanctuary(); // refresh
+          });
+        }
+        roomsEl.appendChild(card);
+      }
+    }
+    // Friendship
+    const fEl = document.getElementById('sanctuary-friendship');
+    if (fEl) {
+      fEl.innerHTML = '';
+      const all = PP_Content.POPLINGS;
+      Object.keys(all).forEach((id) => {
+        const def = all[id];
+        const lvl = game.friendship[id] || 1;
+        const card = document.createElement('div');
+        card.className = 'aug-card';
+        card.innerHTML = `
+          <div class="ac-head">
+            <div class="ac-icon" style="background:${def.color};color:#fff;">●</div>
+            <div>
+              <div class="ac-name">${def.name}</div>
+              <div class="ac-family">Friendship Lv ${lvl}/10</div>
+            </div>
+          </div>
+          <div class="ac-desc">${'★'.repeat(lvl)}${'☆'.repeat(10 - lvl)}</div>`;
+        fEl.appendChild(card);
+      });
+    }
   }
 
   // ---- Pause ----
@@ -269,6 +337,18 @@
       ['Enemies defeated', g.runStats.enemiesDefeated],
     ];
     setHTML('#end-stats', s.map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`).join(''));
+    // Meta rewards (§14/§7/§15.1): show Sparks + Friendship gained on win.
+    if (won && g._lastSparksEarned) {
+      const rewardLine = document.createElement('div');
+      rewardLine.style.cssText = 'margin-top:10px;text-align:center;color:var(--accent);font-weight:800;';
+      let txt = '✨ +' + g._lastSparksEarned + ' Sparks';
+      if (g._lastFriendshipGains && g._lastFriendshipGains.length) {
+        txt += ' · Friendship: ' + g._lastFriendshipGains.join(', ');
+      }
+      rewardLine.textContent = txt;
+      const stats = document.getElementById('end-stats');
+      if (stats && stats.parentNode) stats.parentNode.insertBefore(rewardLine, stats.nextSibling);
+    }
   }
 
   // ---- Toast ----
@@ -292,6 +372,7 @@
     init, showTitle, togglePause,
     showAugment, bindAugmentUI,
     showSquadSelect, bindSquadUI,
+    showSanctuary,
     showResult, showEnd, toast,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

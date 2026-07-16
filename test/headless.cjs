@@ -41,7 +41,7 @@ vm.createContext(sandbox);
 
 const order = ['util', 'config', 'audio', 'haptics', 'effects', 'content', 'physics', 'replay', 'input', 'render', 'game', 'ui'];
 for (const name of order) {
-  const code = fs.readFileSync(path.join(__dirname, '..', 'www', 'js', name + '.js'), 'utf8');
+  const code = fs.readFileSync(path.join(__dirname, '..', 'www','js', name + '.js'), 'utf8');
   vm.runInContext(code, sandbox, { filename: name + '.js' });
 }
 
@@ -62,11 +62,11 @@ console.log('\n[1] Damage formula (§5.5)');
   check('over-speed clamps velocityFactor to 1.30', r2.velocityFactor > 1.29 && r2.dmg > 12);
 
   const r3 = PP_Physics.computeDamage({ power: 10, speed: 1180, normalLaunchSpeed: 1180, comboCount: 16, armor: 0, marked: false, crit: false });
-  check('combo caps: comboFactor = 1 + 0.04*min(15,15) = 1.6', Math.abs(r3.comboFactor - 1.6) < 0.01);
+  check('combo caps: comboFactor = 1 + 0.06*min(15,15) = 1.9 (retuned)', Math.abs(r3.comboFactor - 1.9) < 0.01);
 
   const r4 = PP_Physics.computeDamage({ power: 10, speed: 1180, normalLaunchSpeed: 1180, comboCount: 1, armor: 2, marked: false, crit: true });
-  // crit mult 1.6, armorFactor 0.9 -> 14.4
-  check('crit multiplies damage (~1.6x)', r4.dmg > 14 && r4.dmg < 15);
+  // crit mult 1.7, armorFactor 0.9 -> 15.3 (retuned)
+  check('crit multiplies damage (~1.7x, retuned)', r4.dmg > 15 && r4.dmg < 16);
   const r5 = PP_Physics.computeDamage({ power: 10, speed: 1180, normalLaunchSpeed: 1180, comboCount: 1, armor: 8, marked: false, crit: false });
   check('armor reduces damage (armorFactor < 1)', r5.armorFactor < 1 && r5.dmg < 10);
 }
@@ -98,7 +98,7 @@ console.log('\n[3] Full room simulation');
   game.startRun();
   check('game starts in PLAYING state', game.state === 'playing');
   check('squad has 3 poplings (§5.2)', game.squad.length === 3);
-  check('starting Courage is 100 (§5.2)', game.courage === 100);
+  check('starting Courage is 120 (§5.2, retuned)', game.courage === 120);
   check('room has 3-7 enemies (§5.1)', game.room.enemies.length >= 3 && game.room.enemies.length <= 7);
   check('4 walls for rectangle (§5.1)', game.walls.length === 4);
 

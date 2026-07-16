@@ -61,23 +61,23 @@
     comboMilestones: [5, 10, 20, 35, 50], // §6 Impact typography
   };
 
-  // Damage / combo (§5.5)
+  // Damage / combo (§5.5). Retuned so ricochet play (the core loop) wins rooms.
   const COMBAT = {
-    basePower: 10,              // Pogo base impact damage
-    velocityFloor: 0.65,
-    velocityCeil: 1.30,
-    comboPerHit: 0.04,
-    comboMaxCount: 15,          // cap contribution: 1 + 0.04*min(c-1,15)
+    basePower: 14,              // Popling base impact damage (higher = more satisfying)
+    velocityFloor: 0.70,
+    velocityCeil: 1.35,
+    comboPerHit: 0.06,          // 6% per combo hit (rewards ricochet chains)
+    comboMaxCount: 15,          // cap contribution: 1 + 0.06*min(c-1,15)
     critChanceBase: 0.0,
-    critMult: 1.6,
+    critMult: 1.7,
   };
 
   // Squad (§5.2)
   const SQUAD = {
     size: 3,
-    startCourage: 100,
+    startCourage: 120,          // retuned: a bit more forgiving for expedition runs
     poplingRadius: 26,
-    restTurns: 1,               // Resting for one player turn (§5.2)
+    restTurns: 1,               // Resting for one player turn (§5.3)
     popEveryShots: 3,           // POP availability once per Popling per 3 squad shots (§5.3)
   };
 

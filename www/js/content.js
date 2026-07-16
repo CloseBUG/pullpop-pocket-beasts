@@ -46,14 +46,14 @@
       id: 'dumpling', name: 'Dumpling Dull',
       color: '#9b8cf0', color2: '#c9c0ff', accent: '#3a2e7a',
       hp: 12, armor: 0, radius: 28,
-      intent: 'locked', intentRange: 120, intentDamage: 6, moveAfter: false,
+      intent: 'locked', intentRange: 120, intentDamage: 5, moveAfter: false,
       lesson: 'Read a locked zone.',
     },
     pinprick: {
       id: 'pinprick', name: 'Pinprick',
       color: '#ff9eb0', color2: '#ffd0db', accent: '#7a1f33',
       hp: 10, armor: 0, radius: 22,
-      intent: 'tracking', intentRange: 9999, intentDamage: 6, moveAfter: false,
+      intent: 'tracking', intentRange: 9999, intentDamage: 5, moveAfter: false,
       lesson: 'Break line of sight or interrupt.',
     },
     braceface: {
@@ -67,7 +67,7 @@
       id: 'shoveler', name: 'Shoveler',
       color: '#c9a26b', color2: '#ecd0a8', accent: '#5e3f1a',
       hp: 16, armor: 2, radius: 28,
-      intent: 'charge', intentRange: 0, intentDamage: 8, moveAfter: false,
+      intent: 'charge', intentRange: 0, intentDamage: 7, moveAfter: false,
       lesson: 'Reposition and exploit hazards.',
     },
     mumbler: {
@@ -84,6 +84,28 @@
     armored: { name: 'Armored', armor: 6, color: '#cfd6e6' },
     restless: { name: 'Restless', moveAfter: true, color: '#e67fb0' },
     unstable: { name: 'Unstable', explodeOnDeath: 90, color: '#ff7b6b' },
+  };
+
+  // ---- Boss: Grumble Hoover (blueprint §11 World 1) ----
+  // A hungry vacuum creature that pulls units toward a telegraphed mouth cone.
+  // Players knock heavy objects to clog it, then ricochet into exposed filters.
+  // Phase 0 simplified: boss has a "mouth" (vulnerable front) and "filters" (weak points).
+  const BOSSES = {
+    grumble_hoover: {
+      id: 'grumble_hoover', name: 'Grumble Hoover',
+      color: '#8b6fc0', color2: '#d4bfff', accent: '#3a1f6a',
+      hp: 140, radius: 56, armor: 2,
+      // The boss cycles phases: SHIELDING (mouth closed, armored) -> EXPOSED (mouth open, vulnerable).
+      phaseDuration: 2.5, // turns shielded before exposing
+      mouthCone: 1.6,      // arc of the "mouth" pull cone (radians)
+      pullStrength: 280,   // how hard it pulls the popling toward the mouth when shielded
+      intentDamage: 12,    // vacuum suck damage when shielded
+      lesson: 'Clog the mouth, then strike the exposed filters.',
+      // Weak points: 3 filter nodes around the body; hitting one when EXPOSED deals big damage.
+      filters: 3,
+      filterHp: 20,
+      exposedDamageMult: 2.5, // bonus damage when boss is in EXPOSED phase
+    },
   };
 
   // ---- Augments (§9) — Phase 0: 12 across Bounce / Buddy / Precision ----
@@ -122,6 +144,6 @@
   };
 
   global.PP_Content = {
-    POPLINGS, ENEMIES, ELITE_MODS, AUGMENTS, WORLDS, STATUSES,
+    POPLINGS, ENEMIES, ELITE_MODS, BOSSES, AUGMENTS, WORLDS, STATUSES,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

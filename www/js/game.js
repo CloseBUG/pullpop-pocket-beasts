@@ -344,8 +344,12 @@
     }
 
     buildStartingSquad() {
-      const ids = ['pogo', 'cinder', 'mosslug'];
-      const defs = ids.map((id) => PP_Content.POPLINGS[id]);
+      // Use selected squad if present, else default trio.
+      const sel = (this.selectedSquad && this.selectedSquad.length === 3) ? this.selectedSquad : ['pogo', 'cinder', 'mosslug'];
+      const ids = sel.filter((id) => PP_Content.POPLINGS[id]);
+      // backfill if invalid
+      while (ids.length < 3) { const fallback = ['pogo', 'cinder', 'mosslug'][ids.length]; if (!ids.includes(fallback)) ids.push(fallback); else break; }
+      const defs = ids.slice(0, 3).map((id) => PP_Content.POPLINGS[id]);
       const positions = this.startingSquadPositions();
       return defs.map((def, i) => ({
         uid: 'p' + i,
@@ -708,19 +712,59 @@
       if (!p || !this.isPopReady(p)) return;
       const sp = Math.hypot(p.vx, p.vy);
       if (sp < Cfg.POP.minSpeedForPop) return;
-      // Second Wind: instant mid-flight impulse toward current direction (§7)
-      const dir = vnorm({ x: p.vx, y: p.vy });
-      const boost = this.shotState.launchSpeed * Cfg.POP.impulseFrac;
-      p.vx += dir.x * boost; p.vy += dir.y * boost;
       p.shotsSincePop = 0;
       p.popReady = false;
       this.shotState.popped = true;
       PP_Audio.popAbility();
       PP_Haptics.pop();
-      PP_Effects.burst(p.x, p.y, dir.x, dir.y, { count: 16, color: Cfg.POP.flashColor, speed: 500, size: 6, life: 0.5 });
-      PP_Effects.ring(p.x, p.y, { color: Cfg.POP.flashColor, radius: 30, life: 0.4, width: 6 });
       PP_Effects.flash(0.3);
       PP_Effects.hitStop(0.04);
+      const popId = p.def.pop ? p.def.pop.id : 'second_wind';
+      const dir = vnorm({ x: p.vx, y: p.vy });
+
+      if (popId === 'second_wind') {
+        // Pogo: instant mid-flight impulse toward current direction (§7)
+        const boost = this.shotState.launchSpeed * Cfg.POP.impulseFrac;
+        p.vx += dir.x * boost; p.vy += dir.y * boost;
+      } else if (popId === 'flash_roast') {
+        // Cinder: detonate Burn on all enemies (bonus, doesn't consume all stacks §7)
+        for (const e of this.room.enemies) {
+          if (e.dead || !e.statuses || !e.statuses.burn) continue;
+          const burstDmg = e.statuses.burn * 6;
+          this.applyDamage(e, burstDmg, false, { x: e.x, y: e.y }, 0, -1, p);
+          PP_Effects.burst(e.x, e.y, 0, -1, { count: 12, color: '#ff7b3a', speed: 350, size: 5, life: 0.4 });
+        }
+        PP_Effects.ring(p.x, p.y, { color: '#ff6b4a', radius: 60, life: 0.5, width: 7 });
+      } else if (popId === 'ground_pound') {
+        // Pebblit: stop + Break shockwave (§7)
+        p.vx = 0; p.vy = 0;
+        PP_Effects.ring(p.x, p.y, { color: '#cfd6e6', radius: 140, life: 0.5, width: 10 });
+        PP_Effects.shake(8);
+        for (const e of this.room.enemies) {
+          if (e.dead) continue;
+          if (dist(e.x, e.y, p.x, p.y) < 140) {
+            this.applyStatus(e, 'brk', 1);
+            this.applyDamage(e, p.def.power * 0.8, false, { x: e.x, y: e.y }, 0, -1, p);
+          }
+        }
+      } else if (popId === 'zip_zap') {
+        // Volty: lightning chains between nearby marked/conductive enemies (§7)
+        const marked = this.room.enemies.filter(e => !e.dead && e.statuses && e.statuses.shock);
+        let prev = p;
+        for (const e of marked) {
+          if (dist(prev.x, prev.y, e.x, e.y) < 260) {
+            this.applyDamage(e, p.def.power * 0.7, false, { x: e.x, y: e.y }, 0, -1, p);
+            PP_Effects.spawn({ x: (prev.x + e.x) / 2, y: (prev.y + e.y) / 2, vx: 0, vy: 0, life: 0.2, maxLife: 0.2, size: 4, color: '#ffe066', kind: 'dot' });
+            prev = e;
+          }
+        }
+      } else {
+        // Default fallback: impulse like Second Wind
+        const boost = this.shotState.launchSpeed * Cfg.POP.impulseFrac;
+        p.vx += dir.x * boost; p.vy += dir.y * boost;
+      }
+      PP_Effects.burst(p.x, p.y, dir.x, dir.y, { count: 16, color: Cfg.POP.flashColor, speed: 500, size: 6, life: 0.5 });
+      PP_Effects.ring(p.x, p.y, { color: Cfg.POP.flashColor, radius: 30, life: 0.4, width: 6 });
     }
 
     // ---- preview simulation (dotted line) §5.3 ----
@@ -860,6 +904,8 @@
         // Mark (status)
         const marked = !!(e.statuses && e.statuses.mark);
         if (marked && Math.random() < 0.5) crit = true;
+        // Glim passive: accumulated crit bonus from unique targets.
+        if (ap.def.passiveId === 'precise' && ss._glimBonus && Math.random() < ss._glimBonus) crit = true;
         // Corner Pocket mark application
         if (ss.cornerPocketMark && !ss.firstEnemyDone) { this.applyStatus(e, 'mark', 1); }
 
@@ -1028,6 +1074,19 @@
       PP_Effects.hitStop(crit ? T.hitStopMax : T.hitStopMin);
       // Cinder passive: direct hit adds Burn
       if (ap.def.passiveId === 'ignite') this.applyStatus(e, 'burn', 1);
+      // Volty passive: first hit marks enemy as Conductive (Shock).
+      if (ap.def.passiveId === 'conductive' && !ss._voltyFirstHit) {
+        this.applyStatus(e, 'shock', 1);
+        ss._voltyFirstHit = true;
+      }
+      // Glim passive: consecutive unique-target hits increase crit chance.
+      if (ap.def.passiveId === 'precise') {
+        ss._glimTargets = ss._glimTargets || new Set();
+        if (!ss._glimTargets.has(e.uid)) {
+          ss._glimTargets.add(e.uid);
+          ss._glimBonus = (ss._glimBonus || 0) + 0.08; // +8% crit per unique target
+        }
+      }
       // Spicy Corners (§9): if a wall was hit before this enemy, apply Burn.
       if (this.shotState && this.shotState.spicyCornersPrimed && this.hasAug('spicy_corners')) {
         this.applyStatus(e, 'burn', 1);

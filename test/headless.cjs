@@ -204,7 +204,7 @@ console.log('\n[6] Augments & content (§9)');
   const fams = new Set(augs.map(a => a.family));
   check('augments span all 6 families (§9)', fams.has('Bounce') && fams.has('Buddy') && fams.has('Precision') && fams.has('Element') && fams.has('Swarm') && fams.has('Courage'));
   check('all augment ids unique', new Set(augs.map(a => a.id)).size === augs.length);
-  check('3 Poplings defined (vertical-slice trio)', Object.keys(PP_Content.POPLINGS).length === 3);
+  check('10 Poplings defined (full §7 roster)', Object.keys(PP_Content.POPLINGS).length === 10);
   check('9 enemy families defined (5 base + 4 extended §10)', Object.keys(PP_Content.ENEMIES).length === 9);
   check('6 statuses defined (§8)', Object.keys(PP_Content.STATUSES).length === 6);
 }

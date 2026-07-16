@@ -1,0 +1,20 @@
+{
+	"appId": "studio.tumble.pullpop",
+	"appName": "PULLPOP",
+	"webDir": "www",
+	"server": {
+		"androidScheme": "https"
+	},
+	"ios": {
+		"scrollEnabled": false,
+		"backgroundColor": "#16142a"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 600,
+			"backgroundColor": "#16142a",
+			"showSpinner": false
+		}
+	},
+	"packageClassList": []
+}

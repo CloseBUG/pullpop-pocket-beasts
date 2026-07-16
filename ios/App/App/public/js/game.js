@@ -3,7 +3,7 @@
 (function (global) {
   'use strict';
 
-  const { clamp, clamp01, dist, vnorm, vlen, makeRng, TAU } = PP_Util;
+  const { clamp, clamp01, dist, vnorm, vlen, makeRng } = PP_Util;
   const Cfg = PP_Config;
   const A = Cfg.ARENA;
   const P = Cfg.PHYS;
@@ -143,56 +143,6 @@
       PP_Effects.clearAll();
     }
 
-    // ---- Daily Shot (blueprint §13.3): one shared seeded puzzle per day ----
-    // Deterministic seed from the date so every player gets the same room today.
-    static dailySeed(date) {
-      const d = date || new Date();
-      return ((d.getFullYear() - 2020) * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) * 7919;
-    }
-    static dailyCode(date) {
-      const d = date || new Date();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${mm}${dd}`;
-    }
-    startDaily() {
-      const seed = PP_Game.dailySeed();
-      this.runSeed = seed;
-      this.rng = makeRng(seed);
-      this.isDaily = true;
-      this.squad = this.buildStartingSquad();
-      this.courage = Cfg.SQUAD.startCourage;
-      this.maxCourage = Cfg.SQUAD.startCourage;
-      this.shield = 0;
-      this.buttons = 0;
-      this.augments = [];
-      this.totalRooms = 1;
-      this.roomIndex = 0;
-      this._rerollsLeft = 0;
-      this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
-      // Daily room: one room, moderate difficulty, single squad shot goals (damage/combo).
-      this.buildRoom(0);
-      // Track best daily score locally.
-      const code = PP_Game.dailyCode();
-      this.dailyCode = code;
-      this.dailyBest = this.loadDailyBest(code);
-      this.setState(S.PLAYING);
-      this.phase = PH.AIM;
-      PP_Replay.reset();
-      PP_Replay.startRecording();
-      PP_Effects.clearAll();
-    }
-    loadDailyBest(code) {
-      try { return parseInt(localStorage.getItem('pullpop_daily_' + code) || '0', 10); }
-      catch (e) { return 0; }
-    }
-    saveDailyBest(code, score) {
-      try {
-        const prev = this.loadDailyBest(code);
-        if (score > prev) localStorage.setItem('pullpop_daily_' + code, String(score));
-      } catch (e) {}
-    }
-
     buildStartingSquad() {
       const ids = ['pogo', 'cinder', 'mosslug'];
       const defs = ids.map((id) => PP_Content.POPLINGS[id]);
@@ -228,48 +178,22 @@
       const room = {
         idx, world, enemies: [], objects: [], lockedZones: [], chargeArrows: [], trackingLines: [],
       };
-
-      // ---- BOSS ROOM (blueprint §11): final room is Grumble Hoover ----
-      const isBossRoom = (!this.isDaily && idx === this.totalRooms - 1);
+      const count = clamp(3 + Math.floor(idx * 0.7), 3, 7); // 3–7 enemies (§5.1)
+      const enemyKinds = Object.keys(PP_Content.ENEMIES);
+      // bias early rooms to dumpling, later rooms add variety
       let uid = 0;
-      if (isBossRoom && PP_Content.BOSSES && PP_Content.BOSSES.grumble_hoover) {
-        const bossDef = PP_Content.BOSSES.grumble_hoover;
-        const boss = this.makeBoss(bossDef, a, uid++);
-        room.enemies.push(boss);
-        room.isBoss = true;
-        // heavy "clog" objects the player can knock into the mouth (§11)
-        for (let i = 0; i < 3; i++) {
-          room.objects.push({
-            uid: 'clog' + i, kind: 'object', id: 'clog',
-            x: a.x + 120 + i * 180, y: a.y + a.h * 0.55,
-            r: 20, bumper: false, movable: true, mass: 3,
-            vx: 0, vy: 0,
-            def: { color: '#c9a26b', color2: '#ecd0a8' }, sx: 1, sy: 1, _hit: 0,
-          });
-        }
-        // still add the spring bumper for combo potential
-        room.objects.push({
-          uid: 'obj0', kind: 'object', id: 'bumper',
-          x: a.x + a.w / 2, y: a.y + a.h * 0.78,
-          r: 22, bumper: true, restitution: 1.15, def: { color: '#7be0a8', color2: '#c6f5d8' },
-          sx: 1, sy: 1, _hit: 0,
-        });
-      } else {
-        // ---- NORMAL ROOM ----
-        const count = clamp(3 + Math.floor(idx * 0.7), 3, 7); // 3–7 enemies (§5.1)
-        const enemyKinds = Object.keys(PP_Content.ENEMIES);
-        // bias early rooms to dumpling, later rooms add variety
-        for (let i = 0; i < count; i++) {
-          let kind;
-          if (idx === 0) kind = 'dumpling';
-          else if (idx <= 1) kind = this.rng.pick(['dumpling', 'dumpling', 'pinprick']);
-          else kind = this.rng.pick(enemyKinds);
-          const def = PP_Content.ENEMIES[kind];
-          const elite = idx >= 3 && i === 0 ? this.rng.pick(['armored', 'restless', 'unstable', null]) : null;
-          const e = this.makeEnemy(def, a, uid++, elite, idx);
-          room.enemies.push(e);
-        }
-        // Add a spring bumper object for "surprise high combo" (tutorial §17 1:20–2:00)
+      for (let i = 0; i < count; i++) {
+        let kind;
+        if (idx === 0) kind = 'dumpling';
+        else if (idx <= 1) kind = this.rng.pick(['dumpling', 'dumpling', 'pinprick']);
+        else kind = this.rng.pick(enemyKinds);
+        const def = PP_Content.ENEMIES[kind];
+        const elite = idx >= 3 && i === 0 ? this.rng.pick(['armored', 'restless', 'unstable', null]) : null;
+        const e = this.makeEnemy(def, a, uid++, elite, idx);
+        room.enemies.push(e);
+      }
+      // Add a spring bumper object for "surprise high combo" (tutorial §17 1:20–2:00)
+      if (idx >= 0) {
         room.objects.push({
           uid: 'obj0', kind: 'object', id: 'bumper',
           x: a.x + a.w / 2, y: a.y + a.h / 2,
@@ -319,32 +243,6 @@
         e.maxHp = Math.round(e.maxHp * 1.3); e.hp = e.maxHp;
       }
       return e;
-    }
-
-    // ---- Boss creation (blueprint §11: Grumble Hoover) ----
-    makeBoss(def, a, uid) {
-      // Boss sits center-top, mouth facing down toward the squad.
-      const cx = a.x + a.w / 2;
-      const cy = a.y + a.h * 0.32;
-      const boss = {
-        uid: 'boss', id: def.id, def, kind: 'enemy', isBoss: true,
-        x: cx, y: cy, vx: 0, vy: 0, r: def.radius,
-        hp: def.hp, maxHp: def.hp, armor: def.armor,
-        facing: Math.PI / 2, // mouth points down (toward squad)
-        // Phase machine: 'shielding' (armored, pulls) <-> 'exposed' (vulnerable)
-        bossPhase: 'shielding',
-        phaseCounter: def.phaseDuration, // turns until exposed
-        mouthCone: def.mouthCone,
-        pullStrength: def.pullStrength,
-        intentDamage: def.intentDamage,
-        intent: 'locked',
-        intentRange: 9999,
-        statuses: {}, sx: 1, sy: 1, dead: false,
-        exposedDamageMult: def.exposedDamageMult || 2.0,
-        // Clog state: when 2+ heavy objects are near the mouth, boss gets exposed early.
-        clogLevel: 0,
-      };
-      return boss;
     }
 
     // ---- enemy intents (§5.4) ----
@@ -574,18 +472,6 @@
       const ap = this.activePopling();
       const sp = Math.hypot(ap.vx, ap.vy);
 
-      // Rubber Soul augment (§9 Bounce/rare): every 5th collision creates a shockwave.
-      if (this.hasAug('rubber_soul') && ss.collisions % 5 === 0) {
-        PP_Effects.ring(ap.x, ap.y, { color: '#ffd166', radius: 80, life: 0.35, width: 6 });
-        for (const e of this.room.enemies) {
-          if (e.dead) continue;
-          if (dist(e.x, e.y, ap.x, ap.y) < 90) {
-            this.applyDamage(e, ap.def.power * 0.4, false, { x: e.x, y: e.y }, 0, -1, ap);
-          }
-        }
-        PP_Audio.comboHit(ss.combo, 'object');
-      }
-
       if (ev.kind === 'wall') {
         ss.wallHitsThisShot++;
         // Pogo passive: first wall rebound preserves extra speed (+8%)
@@ -691,33 +577,6 @@
           real._wakeNextTurn = true;
           PP_Effects.floatText(real.x, real.y - 30, 'WAKE!', { color: '#ffd166', size: 16 });
         }
-        // Pass It On: buddy hit transfers one positive status from the nearest
-        // statused enemy to other nearby enemies (§9 Buddy).
-        if (this.hasAug('pass_it_on') && ss.buddyHitsThisShot === 1) {
-          let source = null, bestD = Infinity;
-          for (const e of this.room.enemies) {
-            if (e.dead || !e.statuses) continue;
-            const positive = ['burn', 'mark', 'brk'].some((k) => e.statuses[k]);
-            if (!positive) continue;
-            const dd = dist(e.x, e.y, buddy.x, buddy.y);
-            if (dd < bestD) { bestD = dd; source = e; }
-          }
-          if (source) {
-            const key = ['burn', 'mark', 'brk'].find((k) => source.statuses[k]);
-            let transferred = 0;
-            for (const e of this.room.enemies) {
-              if (e.dead || e === source) continue;
-              if (dist(e.x, e.y, buddy.x, buddy.y) < 160) {
-                this.applyStatus(e, key, 1);
-                transferred++;
-                PP_Effects.burst(e.x, e.y, 0, -1, { count: 4, color: PP_Content.STATUSES[key].color, speed: 120, size: 3, life: 0.3 });
-              }
-            }
-            if (transferred > 0) {
-              PP_Effects.floatText(buddy.x, buddy.y - 50, 'PASS IT ON!', { color: '#ffd166', size: 14 });
-            }
-          }
-        }
         // Three's Company: touching both allies in one shot => heal Courage +10
         if (this.hasAug('threes_company') && ss.buddiesHit.size >= 2 && !ss.threesUsed) {
           this.courage = Math.min(this.maxCourage, this.courage + 10);
@@ -749,15 +608,6 @@
 
     applyDamage(e, dmg, crit, point, nx, ny, ap) {
       dmg = Math.max(1, dmg);
-      // Boss: takes bonus damage when EXPOSED, reduced when SHIELDING (blueprint §11).
-      if (e.isBoss) {
-        if (e.bossPhase === 'exposed') {
-          dmg *= e.exposedDamageMult;
-          PP_Effects.floatText(e.x, e.y - e.r - 28, 'EXPOSED!', { color: '#ff7b9c', size: 18, big: true, life: 0.8 });
-        } else {
-          dmg *= 0.4; // shielding: armored, glancing hits
-        }
-      }
       e.hp -= dmg;
       // squash enemy
       e.sx = 0.7; e.sy = 1.3;
@@ -922,64 +772,6 @@
       const room = this.room;
       for (const e of room.enemies) {
         if (e.dead) continue;
-
-        // ---- Boss phase logic (Grumble Hoover, §11) ----
-        if (e.isBoss) {
-          if (e.bossPhase === 'shielding') {
-            // Vacuum pull: damage poplings in the mouth cone, pull them toward boss.
-            const cone = e.mouthCone;
-            const range = 600;
-            let damaged = false;
-            for (const p of this.squad) {
-              if (p.state === 'dead') continue;
-              const dx = p.x - e.x, dy = p.y - e.y;
-              const d = Math.hypot(dx, dy) || 1;
-              if (d > range) continue;
-              const ang = Math.atan2(dy, dx);
-              let diff = Math.abs(ang - e.facing);
-              if (diff > Math.PI) diff = TAU - diff;
-              if (diff < cone / 2) {
-                this.hurtCourage(e.intentDamage, 'Grumble Hoover vacuum', p);
-                damaged = true;
-                // visual pull effect
-                PP_Effects.burst(p.x, p.y, -dx / d, -dy / d, { count: 5, color: '#8b6fc0', speed: 120, size: 3, life: 0.3 });
-              }
-            }
-            // tick down phase counter; expose if clogged or counter hits 0
-            e.phaseCounter -= 1;
-            // Check clog: count heavy objects near the mouth
-            let clog = 0;
-            for (const o of room.objects) {
-              if (o.id !== 'clog') continue;
-              const dx = o.x - e.x, dy = o.y - e.y;
-              if (Math.hypot(dx, dy) < e.r + 60) clog++;
-            }
-            e.clogLevel = clog;
-            if (e.phaseCounter <= 0 || clog >= 2) {
-              e.bossPhase = 'exposed';
-              e.phaseCounter = 2; // turns exposed
-              e.armor = 0;
-              PP_Effects.floatText(e.x, e.y - e.r - 20, 'MOUTH OPEN!', { color: '#ff7b9c', size: 22, big: true, life: 1.2 });
-              PP_Effects.ring(e.x, e.y, { color: '#ff7b9c', radius: e.r, life: 0.6, width: 8 });
-              PP_Effects.shake(6); PP_Effects.flash(0.3);
-              PP_Audio.bad();
-            } else {
-              PP_Effects.floatText(e.x, e.y - e.r - 16, clog >= 1 ? `clogging ${clog}/2` : 'SHIELDED', { color: '#cfd6e6', size: 14 });
-            }
-          } else if (e.bossPhase === 'exposed') {
-            e.phaseCounter -= 1;
-            if (e.phaseCounter <= 0) {
-              // reseal, become armored again
-              e.bossPhase = 'shielding';
-              e.phaseCounter = e.def.phaseDuration;
-              e.armor = e.def.armor;
-              PP_Effects.floatText(e.x, e.y - e.r - 20, 'RESEALING', { color: '#7fc7ff', size: 18 });
-            }
-          }
-          // Boss doesn't use normal intents; skip to next enemy.
-          continue;
-        }
-
         if (e.intent === 'locked') {
           // damage poplings in any locked zone
           for (const z of room.lockedZones) {
@@ -1081,16 +873,10 @@
 
     onRoomCleared() {
       this.runStats.roomsCleared++;
-      this.courage = Math.min(this.maxCourage, this.courage + 25); // partial heal between rooms
-      this.shield = Math.min(this.maxCourage * 0.3, this.shield + 8); // small shield carry-over
-      this.buttons += 12;
-      // Boss room is the FINAL room (blueprint §11/§30). If next index is the last, build boss.
-      // Offer augment after non-boss rooms (§9).
-      if (this.roomIndex < this.totalRooms - 2) {
-        this.offerAugments();
-        this.setState(S.AUGMENT);
-      } else if (this.roomIndex === this.totalRooms - 2) {
-        // second-to-last room cleared: offer augment then proceed to boss room
+      this.courage = Math.min(this.maxCourage, this.courage + 12); // partial heal between rooms
+      this.buttons += 10;
+      // offer augment after some rooms (§9)
+      if (this.roomIndex < this.totalRooms - 1) {
         this.offerAugments();
         this.setState(S.AUGMENT);
       } else {
@@ -1140,13 +926,6 @@
       this.clearSavedRun();
       PP_Replay.stopRecording();
       PP_Audio.fanfare();
-      // Daily Shot: record best score (combo + damage, blueprint §13.3 goals).
-      if (this.isDaily && this.dailyCode) {
-        const score = this.runStats.bestCombo * 10 + this.runStats.damageDealt + this.runStats.enemiesDefeated * 5;
-        this.saveDailyBest(this.dailyCode, score);
-        this.dailyScore = score;
-        this.dailyBest = this.loadDailyBest(this.dailyCode);
-      }
       this.setState(S.END);
       PP_UI.showEnd(true, this);
     }
@@ -1176,6 +955,5 @@
     }
   }
 
-  global.PP_Game = { Game, States: S, Phases: PH,
-    dailySeed: Game.dailySeed, dailyCode: Game.dailyCode };
+  global.PP_Game = { Game, States: S, Phases: PH };
 })(typeof window !== 'undefined' ? window : globalThis);

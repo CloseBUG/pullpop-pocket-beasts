@@ -31,20 +31,10 @@
     const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
     on('#btn-start', 'click', () => {
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
-      game.isDaily = false;
       hideAll(); game.startRun();
-    });
-    on('#btn-daily', 'click', () => {
-      PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
-      hideAll(); game.startDaily();
     });
     on('#btn-howto', 'click', () => { PP_Audio.uiClick(); hideAll(); show('screen-howto'); });
     on('#btn-howto-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
-    // Show today's daily code on the title button.
-    const dailyDateEl = document.getElementById('daily-date');
-    if (dailyDateEl && typeof PP_Game !== 'undefined') {
-      dailyDateEl.textContent = '#' + PP_Game.dailyCode();
-    }
   }
 
   function showTitle() { hideAll(); show('screen-title'); }
@@ -173,27 +163,11 @@
   // ---- Run end ----
   function showEnd(won, g) {
     hideAll(); show('screen-end');
-    const isDaily = !!g.isDaily;
-    setText('#end-title', won
-      ? (isDaily ? 'Daily Shot Complete!' : 'Expedition Complete!')
-      : 'Courage Drained');
-    let line;
-    if (won && isDaily) {
-      const score = g.dailyScore || 0;
-      const best = g.dailyBest || 0;
-      line = `Daily Shot #${g.dailyCode} — Score: ${Math.round(score)}${score >= best ? ' (NEW BEST!)' : ' · Best: ' + Math.round(best)}`;
-    } else if (won) {
-      line = `You cleared all ${g.totalRooms} rooms of the expedition.`;
-    } else {
-      line = g._lastFailCause ? `The decisive blow: ${g._lastFailCause}.` : 'The Hush claimed this pocket.';
-    }
-    setText('#end-line', line);
-    const s = isDaily ? [
-      ['Best combo', g.runStats.bestCombo + 'x'],
-      ['Damage dealt', Math.round(g.runStats.damageDealt)],
-      ['Shots fired', g.runStats.shotsFired],
-      ['Enemies', g.runStats.enemiesDefeated],
-    ] : [
+    setText('#end-title', won ? 'Expedition Complete!' : 'Courage Drained');
+    setText('#end-line', won
+      ? `You cleared all ${g.totalRooms} rooms of the expedition.`
+      : (g._lastFailCause ? `The decisive blow: ${g._lastFailCause}.` : 'The Hush claimed this pocket.'));
+    const s = [
       ['Rooms cleared', g.runStats.roomsCleared],
       ['Best combo', g.runStats.bestCombo + 'x'],
       ['Shots fired', g.runStats.shotsFired],

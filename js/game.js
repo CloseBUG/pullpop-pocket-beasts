@@ -135,12 +135,15 @@
       this.totalRooms = 5;
       this._rerollsLeft = 1;
       this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
+      this.isDaily = false;
       this.buildRoom(0);
       this.setState(S.PLAYING);
       this.phase = PH.AIM;
       PP_Replay.reset();
       PP_Replay.startRecording();
       PP_Effects.clearAll();
+      // Start the onboarding tutorial on the first room of a fresh expedition (§17).
+      if (global.PP_Tutorial && this.roomIndex === 0) global.PP_Tutorial.start();
     }
 
     // ---- Daily Shot (blueprint §13.3): one shared seeded puzzle per day ----
@@ -398,10 +401,16 @@
     }
 
     // ---- aim handling (from input.js) ----
+    // Lightweight event hook for the tutorial system (blueprint §17). Safe no-op if absent.
+    _tutorial(eventId) {
+      try { if (global.PP_Tutorial && global.PP_Tutorial.isActive && global.PP_Tutorial.isActive()) global.PP_Tutorial.onEvent(eventId); } catch (e) {}
+    }
+
     onAimStart(p) {
       this.activePoplingIdx = this.squad.indexOf(p);
       this.aim = { pivot: { x: p.x, y: p.y }, dir: { x: 0, y: 0 }, forceFrac: 0, d: 0, cancel: false, validShot: false };
       p._aimStretch = 0.85; // pre-stretch anticipation (§6 Pull: body stretches toward finger)
+      this._tutorial('aim-start');
     }
     onAimMove(aim) {
       this.aim = aim;
@@ -444,6 +453,7 @@
 
       this.beginShot(p, info);
       this.aim = null;
+      this._tutorial('release');
     }
 
     beginShot(p, info) {
@@ -908,6 +918,7 @@
       // Buttons reward for big combos (§12 run-only currency)
       if (this.roomBestCombo >= 5) this.buttons += Math.floor(this.roomBestCombo / 2);
       PP_Input.notifyShotEnd();
+      this._tutorial('shot-end');
       // burn damage tick (§8): deals damage after enemy acts — we do it during enemy turn
       this.phase = PH.ENEMY;
       this.enemyActTimer = 0;

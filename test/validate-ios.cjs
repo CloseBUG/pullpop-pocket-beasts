@@ -94,7 +94,7 @@ console.log('\n[6] Web assets synced into iOS bundle');
   const pub = path.join(IOS, 'App', 'public');
   check('public/index.html exists', fs.existsSync(path.join(pub, 'index.html')));
   const jsFiles = fs.existsSync(path.join(pub, 'js')) ? fs.readdirSync(path.join(pub, 'js')).filter(f => f.endsWith('.js')) : [];
-  check('14 web JS files synced (incl. tutorial)', jsFiles.length === 14, jsFiles.length + ' files');
+  check('15 web JS files synced (incl. tutorial + analytics)', jsFiles.length === 15, jsFiles.length + ' files');
   check('css synced', fs.existsSync(path.join(pub, 'css', 'style.css')));
   const idx = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
   check('index.html references local js/', idx.includes('src="js/'));

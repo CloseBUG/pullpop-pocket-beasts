@@ -16,6 +16,7 @@
     game = g;
     bindTitle();
     bindPause();
+    bindSquadUI();
     buildSettingsList();
   }
 
@@ -31,8 +32,8 @@
     const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
     on('#btn-start', 'click', () => {
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
-      game.isDaily = false;
-      hideAll(); game.startRun();
+      game.isDaily = false; game.isWild = false; game.isTower = false; game.isPlayground = false;
+      showSquadSelect('journey');
     });
     on('#btn-daily', 'click', () => {
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
@@ -40,15 +41,15 @@
     });
     on('#btn-wild', 'click', () => {
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
-      hideAll(); game.startWildPocket();
+      showSquadSelect('wild');
     });
     on('#btn-tower', 'click', () => {
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
-      hideAll(); game.startWeeklyTower();
+      showSquadSelect('tower');
     });
     on('#btn-playground', 'click', () => {
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
-      hideAll(); game.startPlayground();
+      showSquadSelect('playground');
     });
     on('#btn-howto', 'click', () => { PP_Audio.uiClick(); hideAll(); show('screen-howto'); });
     on('#btn-howto-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
@@ -60,6 +61,62 @@
   }
 
   function showTitle() { hideAll(); show('screen-title'); }
+
+  // ---- Squad selection (blueprint §5.2: bring exactly three Poplings) ----
+  let pendingMode = 'journey';
+  let selectedIds = ['pogo', 'cinder', 'mosslug'];
+
+  function showSquadSelect(mode) {
+    pendingMode = mode;
+    if (!selectedIds || selectedIds.length !== 3) selectedIds = ['pogo', 'cinder', 'mosslug'];
+    hideAll(); show('screen-squad');
+    const cont = document.getElementById('squad-cards');
+    if (!cont) return;
+    cont.innerHTML = '';
+    const all = PP_Content.POPLINGS;
+    Object.keys(all).forEach((id) => {
+      const def = all[id];
+      const card = document.createElement('div');
+      const isSelected = selectedIds.includes(id);
+      card.className = 'aug-card' + (isSelected ? ' rare' : '');
+      card.style.cursor = 'pointer';
+      card.innerHTML = `
+        <div class="ac-head">
+          <div class="ac-icon" style="background:${def.color};color:#fff;">●</div>
+          <div>
+            <div class="ac-name">${def.name}</div>
+            <div class="ac-family">${def.role}</div>
+          </div>
+        </div>
+        <div class="ac-desc"><b>Passive:</b> ${def.passive}<br><b>POP:</b> ${def.pop.name} — ${def.pop.desc}</div>`;
+      card.addEventListener('click', () => {
+        PP_Audio.uiClick();
+        const idx = selectedIds.indexOf(id);
+        if (idx >= 0) {
+          if (selectedIds.length <= 1) { PP_UI.toast('Need at least 1 Popling'); return; }
+          selectedIds.splice(idx, 1);
+        } else {
+          if (selectedIds.length >= 3) { PP_UI.toast('Squad full (3/3)'); return; }
+          selectedIds.push(id);
+        }
+        showSquadSelect(pendingMode); // refresh
+      });
+      cont.appendChild(card);
+    });
+  }
+  function bindSquadUI() {
+    const el = document.getElementById('btn-squad-confirm');
+    if (el) el.addEventListener('click', () => {
+      PP_Audio.uiClick();
+      game.selectedSquad = selectedIds.slice(0, 3);
+      hideAll();
+      if (pendingMode === 'journey') game.startRun();
+      else if (pendingMode === 'wild') game.startWildPocket();
+      else if (pendingMode === 'tower') game.startWeeklyTower();
+      else if (pendingMode === 'playground') game.startPlayground();
+      else game.startRun();
+    });
+  }
 
   // ---- Pause ----
   function bindPause() {
@@ -234,6 +291,7 @@
   global.PP_UI = {
     init, showTitle, togglePause,
     showAugment, bindAugmentUI,
+    showSquadSelect, bindSquadUI,
     showResult, showEnd, toast,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -118,6 +118,8 @@
     let dt = (now - last) / 1000;
     last = now;
     if (dt > 0.1) dt = 0.1; // avoid huge jumps after tab switch
+    // Game speed accessibility (§18): slow time for players who need it.
+    dt *= (game.settings.gameSpeed || 1);
 
     // battery saver: target 30 FPS
     const targetDt = game.settings.batterySaver ? 1 / 30 : 1 / 60;

@@ -284,10 +284,16 @@
     { key: 'haptics', label: 'Haptics', type: 'toggle' },
     { key: 'screenShake', label: 'Screen shake', type: 'range', min: 0, max: 1, step: 0.1 },
     { key: 'reducedFlashes', label: 'Reduced flashes', type: 'toggle' },
-    { key: 'reducedMotion', label: 'Reduced motion', type: 'toggle' },
+    { key: 'reducedMotion', label: 'Reduced motion (§21)', type: 'toggle' },
+    { key: 'colorBlind', label: 'Color-blind patterns (§21)', type: 'select', options: [['off','Off'],['patterns','Patterns']] },
     { key: 'aimAssist', label: 'Extended aim preview', type: 'toggle' },
+    { key: 'fixedForce', label: 'Fixed-force assist (§21)', type: 'toggle' },
+    { key: 'gameSpeed', label: 'Game speed (§18)', type: 'range', min: 0.5, max: 1, step: 0.25 },
+    { key: 'textScale', label: 'Text size (§21)', type: 'range', min: 0.8, max: 1.4, step: 0.1 },
     { key: 'leftHanded', label: 'Left-handed layout', type: 'toggle' },
+    { key: 'captions', label: 'Event captions (§21)', type: 'toggle' },
     { key: 'batterySaver', label: 'Battery saver (30 FPS)', type: 'toggle' },
+    { key: 'resetData', label: 'Reset all data (§34)', type: 'action' },
   ];
 
   function buildSettingsList() {
@@ -308,6 +314,30 @@
           applySettings();
         });
         ctrl.appendChild(t);
+      } else if (def.type === 'select') {
+        const sel = document.createElement('select');
+        sel.className = 'share-code'; sel.style.maxWidth = '120px';
+        for (const [v, lbl] of def.options) {
+          const o = document.createElement('option'); o.value = v; o.textContent = lbl;
+          if (game.settings[def.key] === v) o.selected = true;
+          sel.appendChild(o);
+        }
+        sel.addEventListener('change', () => {
+          game.settings[def.key] = sel.value; applySettings();
+        });
+        ctrl.appendChild(sel);
+      } else if (def.type === 'action') {
+        const btn = document.createElement('button');
+        btn.className = 'link-btn danger';
+        btn.textContent = 'Reset';
+        btn.style.cssText = 'color:var(--bad);font-weight:800;border:1px solid var(--bad);border-radius:8px;padding:8px 14px;';
+        btn.addEventListener('click', () => {
+          if (confirm('Reset ALL data (progress, cosmetics, settings)? This cannot be undone.')) {
+            try { localStorage.clear(); } catch (e) {}
+            location.reload();
+          }
+        });
+        ctrl.appendChild(btn);
       } else {
         const input = document.createElement('input');
         input.type = 'range'; input.min = def.min; input.max = def.max; input.step = def.step;

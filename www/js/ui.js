@@ -42,6 +42,14 @@
       PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
       hideAll(); game.startWildPocket();
     });
+    on('#btn-tower', 'click', () => {
+      PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
+      hideAll(); game.startWeeklyTower();
+    });
+    on('#btn-playground', 'click', () => {
+      PP_Audio.unlock(); PP_Audio.uiClick(); PP_Audio.startMusic();
+      hideAll(); game.startPlayground();
+    });
     on('#btn-howto', 'click', () => { PP_Audio.uiClick(); hideAll(); show('screen-howto'); });
     on('#btn-howto-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     // Show today's daily code on the title button.

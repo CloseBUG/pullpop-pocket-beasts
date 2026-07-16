@@ -30,6 +30,7 @@
   game.attach(canvas);
   PP_UI.init(game);
   PP_UI.bindAugmentUI();
+  PP_Tutorial.init(game);
   // Expose for debugging/testing
   window.__PP_GAME = game;
 
@@ -75,6 +76,12 @@
     };
   }
 
+  // Tap a tutorial coach-mark to skip it (§17: skippable).
+  const coachEl = document.getElementById('tutorial-coach');
+  if (coachEl) {
+    coachEl.addEventListener('click', () => { PP_Tutorial.skip(); });
+  }
+
   // Keyboard: ESC/P pause, Space POP
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
@@ -117,6 +124,8 @@
 
     // update
     game.update(dt);
+    // tutorial coach-mark follow (§17)
+    PP_Tutorial.update();
 
     // augment screen sync (if game entered AUGMENT state, show the UI)
     if (game.state === PP_Game.States.AUGMENT && game._pendingAugmentOffer) {

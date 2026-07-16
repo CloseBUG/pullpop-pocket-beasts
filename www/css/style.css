@@ -259,3 +259,43 @@ input[type="range"]::-webkit-slider-thumb {
 /* Reduce motion preference */
 .reduce-motion .title-pop { animation: none; }
 .reduce-motion .screen { animation: none; }
+
+/* ---------- Tutorial coach-marks (blueprint §17 FTUE) ---------- */
+.tutorial-layer {
+  position: absolute; inset: 0; pointer-events: none; z-index: 6;
+}
+.tutorial-coach {
+  position: absolute; left: 50%; bottom: 230px;
+  transform: translateX(-50%);
+  background: rgba(22, 20, 42, 0.94);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  padding: 14px 22px;
+  max-width: 80%;
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  animation: coachPop 0.3s ease both;
+}
+.tutorial-coach.hidden { display: none; }
+@keyframes coachPop {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.92); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.coach-icon { font-size: 30px; margin-bottom: 4px; }
+.coach-text { color: var(--ink); font-weight: 800; font-size: 16px; line-height: 1.3; }
+.coach-hint { color: var(--accent); font-size: 12px; font-weight: 700; margin-top: 6px; letter-spacing: 0.5px; }
+
+/* Pulsing ring that draws the eye to the active popling (§17: immediate pull) */
+.tutorial-pulse {
+  position: absolute; width: 90px; height: 90px;
+  border-radius: 50%;
+  border: 3px solid var(--accent);
+  transform: translate(-50%, -50%);
+  animation: pulseRing 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.tutorial-pulse.hidden { display: none; }
+@keyframes pulseRing {
+  0%, 100% { opacity: 0.8; box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.5); transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.3; box-shadow: 0 0 0 18px rgba(255, 209, 102, 0); transform: translate(-50%, -50%) scale(1.25); }
+}

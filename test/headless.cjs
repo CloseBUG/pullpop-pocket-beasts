@@ -113,7 +113,8 @@ console.log('\n[3] Full room simulation');
     let p = game.squad.find(s => s.state === 'ready');
     if (!p) { game.squad.forEach(s => { s.state = 'ready'; s.restTurnsLeft = 0; }); p = game.squad[0]; }
     game.activePoplingIdx = game.squad.indexOf(p);
-    const target = remaining[0];
+    // Target lowest-HP enemy (more reliable clearing for the test AI).
+    const target = remaining.reduce((a, b) => (a.hp < b.hp ? a : b));
     const dx = target.x - p.x, dy = target.y - p.y;
     const d = Math.hypot(dx, dy) || 1;
     game.onAimStart(p);
@@ -152,7 +153,7 @@ console.log('\n[4] Full expedition (5 rooms)');
       let p = game.squad.find(s => s.state === 'ready');
       if (!p) { game.squad.forEach(s => { s.state = 'ready'; s.restTurnsLeft = 0; }); p = game.squad[0]; }
       game.activePoplingIdx = game.squad.indexOf(p);
-      const target = remaining[0];
+      const target = remaining.reduce((a, b) => (a.hp < b.hp ? a : b));
       const dx = target.x - p.x, dy = target.y - p.y;
       const d = Math.hypot(dx, dy) || 1;
       game.onAimStart(p);

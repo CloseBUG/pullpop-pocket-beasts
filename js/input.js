@@ -114,7 +114,10 @@
         PP_Haptics.cancel();
       } else {
         const frac = clamp((d - A.minDrag * 0.3) / (A.fullDrag - A.minDrag * 0.3), 0, 1);
-        const forceFrac = A.minForceFrac + frac * (A.maxForceFrac - A.minForceFrac);
+        // Fixed-force assist (§21): lock to max force, reducing motor precision requirements.
+        const settings = (gameRef && gameRef.settings) || {};
+        const useFixed = settings.fixedForce === true;
+        const forceFrac = useFixed ? A.maxForceFrac : (A.minForceFrac + frac * (A.maxForceFrac - A.minForceFrac));
         const dir = vnorm({ x: -dx, y: -dy });
         gameRef.onAimRelease({ dir, forceFrac, frac, pivot: state.down });
         state.mode = 'flying';

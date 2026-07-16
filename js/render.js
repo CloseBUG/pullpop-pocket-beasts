@@ -92,14 +92,22 @@
     if (z.shape === 'rect') {
       ctx.fillRect(z.x, z.y, z.w, z.h);
       ctx.strokeRect(z.x, z.y, z.w, z.h);
-      // hatch pattern for color-blind (§5.4)
+      // hatch pattern for color-blind (§5.4: color never the only channel)
       ctx.beginPath();
       for (let i = -z.h; i < z.w; i += 14) {
         ctx.moveTo(z.x + i, z.y + z.h); ctx.lineTo(z.x + i + z.h, z.y);
       }
-      ctx.strokeStyle = `rgba(255,120,120,${0.12 + pulse * 0.08})`; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = `rgba(255,120,120,${0.18 + pulse * 0.12})`; ctx.lineWidth = 2; ctx.stroke();
     } else {
       ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, TAU); ctx.fill(); ctx.stroke();
+      // radial hatch for circle zones (§5.4 color-blind)
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        ctx.moveTo(z.x, z.y);
+        ctx.lineTo(z.x + Math.cos(a) * z.r, z.y + Math.sin(a) * z.r);
+      }
+      ctx.strokeStyle = `rgba(255,120,120,${0.15 + pulse * 0.1})`; ctx.lineWidth = 1.5; ctx.stroke();
     }
     ctx.restore();
   }

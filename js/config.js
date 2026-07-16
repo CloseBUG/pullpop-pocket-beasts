@@ -101,6 +101,10 @@
     leftHanded: false,
     aimAssist: true,            // extended preview (accessibility mode, §5.3)
     batterySaver: false,        // 30 FPS mode (§18)
+    textScale: 1.0,             // §21 readable text size
+    gameSpeed: 1.0,             // §18 speed accessibility (0.75 = slow-mo aid)
+    fixedForce: false,          // §21 fixed-force assistance (reduces motor precision req)
+    captions: true,             // §21 captions for key events
   };
 
   global.PP_Config = {

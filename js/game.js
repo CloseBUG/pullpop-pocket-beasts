@@ -258,8 +258,12 @@
       PP_Audio.applySettings(this.settings);
       PP_Haptics.applySettings(this.settings);
       PP_Effects.setShakeScale(this.settings.reducedMotion ? 0 : this.settings.screenShake);
-      if (typeof document !== 'undefined' && document.body && document.body.classList) {
-        document.body.classList.toggle('reduce-motion', !!this.settings.reducedMotion);
+      if (typeof document !== 'undefined' && document.documentElement) {
+        // Text scale (§21 readable text size)
+        const ts = this.settings.textScale || 1;
+        document.documentElement.style.fontSize = (ts * 100) + '%';
+        document.body && document.body.classList.toggle('reduce-motion', !!this.settings.reducedMotion);
+        document.body && document.body.classList.toggle('color-blind-patterns', this.settings.colorBlind === 'patterns');
       }
     }
 

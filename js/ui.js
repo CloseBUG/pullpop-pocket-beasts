@@ -53,6 +53,8 @@
     });
     on('#btn-sanctuary', 'click', () => { PP_Audio.uiClick(); showSanctuary(); });
     on('#btn-season', 'click', () => { PP_Audio.uiClick(); showSeason(); });
+    on('#btn-quests', 'click', () => { PP_Audio.uiClick(); showQuests(); });
+    on('#btn-quests-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     on('#btn-season-back', 'click', () => { PP_Audio.uiBack(); hideAll(); show('screen-title'); });
     on('#btn-season-premium', 'click', () => {
       PP_Audio.uiClick();
@@ -309,6 +311,41 @@
     if (premBtn) premBtn.style.display = game.seasonPremium ? 'none' : 'block';
   }
 
+  // ---- Daily Quests (blueprint §17/§23) ----
+  function showQuests() {
+    hideAll(); show('screen-quests');
+    const cont = document.getElementById('quests-list');
+    if (!cont) return;
+    cont.innerHTML = '';
+    game.rollDailyQuests(); // ensure today's quests exist
+    for (const q of game.quests) {
+      const prog = game.questProgress[q.id] || 0;
+      const complete = prog >= q.goal;
+      const claimed = game._questsClaimed && game._questsClaimed[q.id];
+      const card = document.createElement('div');
+      card.className = 'aug-card' + (complete ? ' rare' : '');
+      card.innerHTML = `
+        <div class="ac-head">
+          <div class="ac-icon">${complete ? '✅' : '🎯'}</div>
+          <div>
+            <div class="ac-name">${q.desc}</div>
+            <div class="ac-family">${prog}/${q.goal} · ✨ ${q.reward}</div>
+          </div>
+        </div>
+        <div class="ac-desc">${claimed ? 'CLAIMED' : complete ? 'Tap to claim!' : 'In progress...'}</div>`;
+      if (complete && !claimed) {
+        card.addEventListener('click', () => {
+          PP_Audio.uiClick();
+          const res = game.claimQuest(q.id);
+          if (res.ok) { PP_Audio.good(); PP_UI.toast('+' + res.reward + ' ✨'); }
+          showQuests();
+        });
+      }
+      cont.appendChild(card);
+    }
+  }
+
+
   // ---- Pause ----
   function bindPause() {
     const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
@@ -525,7 +562,7 @@
     init, showTitle, togglePause,
     showAugment, bindAugmentUI,
     showSquadSelect, bindSquadUI,
-    showSanctuary, showWardrobe, showShare, showSeason,
+    showSanctuary, showWardrobe, showShare, showSeason, showQuests,
     showResult, showEnd, toast,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

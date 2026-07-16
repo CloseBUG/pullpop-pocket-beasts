@@ -61,7 +61,11 @@
       this.seasonXP = 0;           // §16 Season Pass XP
       this.seasonLevel = 1;        // §16 ~50 reward levels
       this.seasonPremium = false;  // §16 premium track (bought)
+      this.quests = [];            // §17/§23 daily quests
+      this.questProgress = {};     // { questId: current value }
+      this.questDate = '';         // which day the quests are for
       this.loadMeta();
+      this.rollDailyQuests();
 
       this.aim = null; // current aim info for preview
       this._pendingAugmentOffer = null;
@@ -129,6 +133,10 @@
           this.seasonXP = m.seasonXP || 0;
           this.seasonLevel = m.seasonLevel || 1;
           this.seasonPremium = !!m.seasonPremium;
+          this.quests = m.quests || [];
+          this.questProgress = m.questProgress || {};
+          this.questDate = m.questDate || '';
+          this._questsClaimed = m.questsClaimed || {};
         }
       } catch (e) {}
       // Init friendship for all Poplings at level 1 (§7).
@@ -144,6 +152,7 @@
           sparks: this.sparks, friendship: this.friendship,
           ownedCosmetics: this.ownedCosmetics, equippedCosmetics: this.equippedCosmetics,
           seasonXP: this.seasonXP, seasonLevel: this.seasonLevel, seasonPremium: this.seasonPremium,
+          quests: this.quests, questProgress: this.questProgress, questDate: this.questDate, questsClaimed: this._questsClaimed,
         }));
       } catch (e) {}
     }
@@ -263,6 +272,54 @@
       this.seasonPremium = true;
       this.saveMeta();
       return { ok: true };
+    }
+
+    // ---- Daily quests (blueprint §17/§23: three lightweight rotating goals) ----
+    rollDailyQuests() {
+      const today = new Date().toDateString();
+      if (this.questDate === today && this.quests.length) return; // already rolled today
+      const questPool = [
+        { id: 'q_clear_rooms', desc: 'Clear 3 rooms', goal: 3, type: 'rooms', reward: 25 },
+        { id: 'q_big_combo', desc: 'Reach a 10x combo', goal: 10, type: 'combo', reward: 30 },
+        { id: 'q_win_run', desc: 'Complete an expedition', goal: 1, type: 'win', reward: 40 },
+        { id: 'q_defeat_enemies', desc: 'Defeat 15 enemies', goal: 15, type: 'defeats', reward: 25 },
+        { id: 'q_shots_fired', desc: 'Fire 20 shots', goal: 20, type: 'shots', reward: 20 },
+      ];
+      // pick 3 deterministic per-day
+      const seed = PP_Game.dailySeed ? PP_Game.dailySeed() : ((Math.random() * 1e9) | 0);
+      const r = makeRng(seed);
+      this.quests = r.shuffle(questPool).slice(0, 3).map((q) => Object.assign({}, q));
+      this.questProgress = {};
+      this.quests.forEach((q) => { this.questProgress[q.id] = 0; });
+      this.questDate = today;
+      this._questsClaimed = {};
+      this.saveMeta();
+    }
+    progressQuest(type, amount) {
+      let leveled = [];
+      for (const q of this.quests) {
+        if (q.type !== type) continue;
+        if (this.questProgress[q.id] >= q.goal) continue;
+        const cur = this.questProgress[q.id] || 0;
+        // Combo-type quests track the peak reached (not cumulative).
+        const next = (type === 'combo') ? Math.max(cur, amount) : Math.min(q.goal, cur + amount);
+        if (next !== cur) {
+          this.questProgress[q.id] = next;
+          leveled.push(q);
+        }
+      }
+      return leveled;
+    }
+    claimQuest(questId) {
+      const q = this.quests.find((x) => x.id === questId);
+      if (!q) return { ok: false, reason: 'no such quest' };
+      if ((this.questProgress[questId] || 0) < q.goal) return { ok: false, reason: 'not complete' };
+      if (this._questsClaimed && this._questsClaimed[questId]) return { ok: false, reason: 'already claimed' };
+      this._questsClaimed = this._questsClaimed || {};
+      this._questsClaimed[questId] = true;
+      this.grantSparks(q.reward, 'quest');
+      this.saveMeta();
+      return { ok: true, reward: q.reward };
     }
 
     // ---- Replay / challenge sharing (blueprint §24) ----
@@ -830,6 +887,11 @@
       try { if (global.PP_Tutorial && global.PP_Tutorial.isActive && global.PP_Tutorial.isActive()) global.PP_Tutorial.onEvent(eventId); } catch (e) {}
     }
 
+    // Analytics event (blueprint §27). Safe no-op if the module is absent.
+    _track(eventName, props) {
+      try { if (global.PP_Analytics) global.PP_Analytics.track(eventName, props); } catch (e) {}
+    }
+
     onAimStart(p) {
       this.activePoplingIdx = this.squad.indexOf(p);
       this.aim = { pivot: { x: p.x, y: p.y }, dir: { x: 0, y: 0 }, forceFrac: 0, d: 0, cancel: false, validShot: false };
@@ -883,6 +945,7 @@
     beginShot(p, info) {
       this.squadShotsTaken++;
       this.runStats.shotsFired++;
+      this.progressQuest('shots', 1);
       p.shotsSincePop++;
       // Pogo passive "springy": tracked via flag for first wall rebound.
       this.shotState = {
@@ -1361,6 +1424,7 @@
     killEnemy(e, ap) {
       e.dead = true;
       this.runStats.enemiesDefeated++;
+      this.progressQuest('defeats', 1);
       // Spotlight (§9 Element): defeating a Marked target marks the farthest enemy.
       if (this.hasAug('spotlight') && e.statuses && e.statuses.mark) {
         let farthest = null, maxD = 0;
@@ -1415,6 +1479,8 @@
       if (this.shotState.combo > this.roomBestCombo) this.roomBestCombo = this.shotState.combo;
       if (this.shotState.combo > this.runStats.bestCombo) this.runStats.bestCombo = this.shotState.combo;
       if (this.shotState.combo > this.bestCombo) this.bestCombo = this.shotState.combo;
+      // Quest combo progress (track the peak reached)
+      this.progressQuest('combo', this.shotState.combo);
       // combo milestone typography (§6 Impact): grows only at 5,10,20,35,50
       if (T.comboMilestones.includes(this.shotState.combo)) {
         PP_Effects.floatText(this.activePopling().x, this.activePopling().y - 50, `${this.shotState.combo}x!`, { color: '#ffd166', size: 34, big: true, life: 1.0 });
@@ -1927,6 +1993,7 @@
 
     onRoomCleared() {
       this.runStats.roomsCleared++;
+      this.progressQuest('rooms', 1);
       // Playground: just rebuild the room (no progression, no rewards §13.5).
       if (this.isPlayground) {
         this.buildPlaygroundRoom();
@@ -1972,6 +2039,7 @@
       if (!def) return;
       this.augments.push(def);
       PP_Audio.good();
+      this._track('augment_pick', { chosenId: id });
       this.continueAfterAugment();
     }
 
@@ -2016,8 +2084,10 @@
         // Season Pass XP (§16): expeditions advance the season track.
         const seasonXP = 20 + this.runStats.roomsCleared * 15;
         this._lastSeasonLevel = this.grantSeasonXP(seasonXP);
+        this.progressQuest('win', 1);
       }
       this.setState(S.END);
+      this._track('run_end', { result: 'win', room: this.roomIndex, courage: Math.round(this.courage), build: this.augments.map(a => a.id), failureCause: null });
       PP_UI.showEnd(true, this);
     }
 
@@ -2026,6 +2096,7 @@
       PP_Replay.stopRecording();
       PP_Audio.bad();
       this.setState(S.END);
+      this._track('run_end', { result: 'loss', room: this.roomIndex, courage: 0, build: this.augments.map(a => a.id), failureCause: this._lastFailCause });
       PP_UI.showEnd(false, this);
     }
 

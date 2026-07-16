@@ -37,6 +37,7 @@
           <button id="btn-playground" class="link-btn">Playground</button>
           <button id="btn-sanctuary" class="link-btn">Sanctuary</button>
           <button id="btn-season" class="link-btn">Season Pass</button>
+          <button id="btn-quests" class="link-btn">Daily Quests</button>
           <button id="btn-share" class="link-btn">Share / Challenge</button>
           <button id="btn-howto" class="link-btn">How to play</button>
           <p class="build-tag">Feel Prototype · Phase 0</p>
@@ -78,6 +79,14 @@
           <div class="aug-cards" id="season-rewards"></div>
           <button id="btn-season-premium" class="link-btn">Unlock Premium Track (200 ✨)</button>
           <button id="btn-season-back" class="big-btn">BACK</button>
+        </section>
+
+        <!-- Daily quests (blueprint §17/§23) -->
+        <section id="screen-quests" class="screen hidden scroll">
+          <h2>Daily Quests</h2>
+          <p class="aug-sub">Rotating goals — refresh each day. Earn Sparks!</p>
+          <div class="aug-cards" id="quests-list"></div>
+          <button id="btn-quests-back" class="big-btn">BACK</button>
         </section>
 
         <!-- Share / load challenge (blueprint §24) -->
@@ -180,6 +189,7 @@
   <script src="js/render.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/tutorial.js"></script>
   <script src="js/main.js"></script>
 </body>

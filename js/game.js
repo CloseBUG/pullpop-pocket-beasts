@@ -125,6 +125,8 @@
     startRun() {
       this.runSeed = ((Math.random() * 1e9) | 0) || 12345;
       this.rng = makeRng(this.runSeed);
+      // Reset all mode flags (don't leak between modes).
+      this.isDaily = false; this.isWild = false; this.isTower = false; this.isPlayground = false;
       this.squad = this.buildStartingSquad();
       this.courage = Cfg.SQUAD.startCourage;
       this.maxCourage = Cfg.SQUAD.startCourage;
@@ -235,6 +237,112 @@
       return { tier, mutators };
     }
 
+    // ---- Weekly Bounce Tower (blueprint §13.4): 10 escalating rooms, 3 rest checkpoints ----
+    // Deterministic per ISO week so all players share the same tower. Players may stop and bank.
+    static weeklyTowerSeed(date) {
+      const d = date || new Date();
+      const onejan = new Date(d.getFullYear(), 0, 1);
+      const week = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+      return (d.getFullYear() * 100 + week) * 15485863; // prime multiplier
+    }
+    startWeeklyTower() {
+      const seed = PP_Game.weeklyTowerSeed();
+      this.runSeed = seed;
+      this.rng = makeRng(seed);
+      this.isTower = true;
+      this.isDaily = false;
+      this.isWild = false;
+      this.squad = this.buildStartingSquad();
+      this.courage = Cfg.SQUAD.startCourage;
+      this.maxCourage = Cfg.SQUAD.startCourage;
+      this.shield = 0;
+      this.buttons = 0;
+      this.augments = [];
+      this.totalRooms = 10; // §13.4: ten rooms
+      this.roomIndex = 0;
+      this._rerollsLeft = 1;
+      this.towerCheckpointFloors = [3, 6, 8]; // rest checkpoints (§13.4: three)
+      this.towerBanked = false;
+      this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
+      this.buildRoom(0);
+      this.setState(S.PLAYING);
+      this.phase = PH.AIM;
+      PP_Replay.reset();
+      PP_Replay.startRecording();
+      PP_Effects.clearAll();
+      PP_UI.toast('BOUNCE TOWER — Floor 1/10');
+    }
+
+    // Checkpoint logic: at rest floors, heal + offer to bank (stop early).
+    isTowerCheckpoint(floor) {
+      return this.isTower && this.towerCheckpointFloors.includes(floor);
+    }
+
+    // Playground (blueprint §13.5): sandbox with no rewards. Place enemies freely.
+    startPlayground() {
+      const seed = ((Math.random() * 1e9) | 0) || 42;
+      this.runSeed = seed;
+      this.rng = makeRng(seed);
+      this.isPlayground = true;
+      this.isDaily = false;
+      this.isWild = false;
+      this.isTower = false;
+      this.squad = this.buildStartingSquad();
+      this.courage = 9999; // no death in playground
+      this.maxCourage = 9999;
+      this.shield = 0;
+      this.buttons = 0;
+      this.augments = [];
+      this.totalRooms = 1;
+      this.roomIndex = 0;
+      this._rerollsLeft = 0;
+      this.runStats = { roomsCleared: 0, bestCombo: 0, shotsFired: 0, damageDealt: 0, enemiesDefeated: 0 };
+      this.buildPlaygroundRoom();
+      this.setState(S.PLAYING);
+      this.phase = PH.AIM;
+      PP_Replay.reset();
+      PP_Replay.startRecording();
+      PP_Effects.clearAll();
+      PP_UI.toast('PLAYGROUND — experiment freely');
+    }
+
+    buildPlaygroundRoom() {
+      const world = PP_Content.WORLDS.jellyyard;
+      const a = A;
+      this.walls = PP_Physics.arenaWalls(a).map((w, i) => Object.assign({ _id: 'wall' + i }, w));
+      const room = {
+        idx: 0, world, enemies: [], objects: [], lockedZones: [], chargeArrows: [], trackingLines: [],
+        isPlayground: true,
+      };
+      // Seed a few enemies + bumpers for experimentation.
+      let uid = 0;
+      const kinds = ['dumpling', 'pinprick', 'shoveler'];
+      for (let i = 0; i < 3; i++) {
+        const def = PP_Content.ENEMIES[kinds[i]];
+        room.enemies.push(this.makeEnemy(def, a, uid++, null, 0));
+      }
+      // several bumpers arranged for combo experimentation
+      for (let i = 0; i < 4; i++) {
+        room.objects.push({
+          uid: 'pb' + i, kind: 'object', id: 'bumper',
+          x: a.x + 120 + i * 130, y: a.y + a.h * 0.45,
+          r: 20, bumper: true, restitution: 1.2, def: { color: '#7be0a8', color2: '#c6f5d8' }, sx: 1, sy: 1, _hit: 0,
+        });
+      }
+      const pos = this.startingSquadPositions();
+      this.squad.forEach((p, i) => {
+        p.x = pos[i].x; p.y = pos[i].y; p.vx = 0; p.vy = 0;
+        p.state = 'ready'; p.restTurnsLeft = 0;
+      });
+      this.activePoplingIdx = 0;
+      this.roomBestCombo = 0;
+      this.roomClearTime = 0;
+      this._lastLaughUsed = false;
+      this.room = room;
+      this.computeIntents();
+      this.phase = PH.AIM;
+    }
+
     buildStartingSquad() {
       const ids = ['pogo', 'cinder', 'mosslug'];
       const defs = ids.map((id) => PP_Content.POPLINGS[id]);
@@ -272,7 +380,8 @@
       };
 
       // ---- BOSS ROOM (blueprint §11): final room is Grumble Hoover ----
-      const isBossRoom = (!this.isDaily && idx === this.totalRooms - 1);
+      // Boss room only on the final room of a Journey expedition (not Daily/Wild/Tower/Playground).
+      const isBossRoom = (!this.isDaily && !this.isWild && !this.isTower && !this.isPlayground && idx === this.totalRooms - 1);
       let uid = 0;
       if (isBossRoom && PP_Content.BOSSES && PP_Content.BOSSES.grumble_hoover) {
         const bossDef = PP_Content.BOSSES.grumble_hoover;
@@ -298,10 +407,9 @@
         });
       } else {
         // ---- NORMAL ROOM ----
-        // ---- NORMAL ROOM ----
-        // Wild Pocket mutators (blueprint §13.2: transparent difficulty rise).
+        // Mutators for Wild Pocket (§13.2) + Weekly Tower (§13.4 escalation).
         let extraCount = 0, hpMult = 1, dmgMult = 1, armorAdd = 0, forceElite = false;
-        if (this.isWild) {
+        if (this.isWild || this.isTower) {
           const m = this.wildMutator(idx);
           room.mutator = m;
           for (const mu of m.mutators) {
@@ -323,7 +431,7 @@
           const def = PP_Content.ENEMIES[kind];
           const elite = (forceElite || idx >= 3) && i === 0 ? this.rng.pick(['armored', 'restless', 'unstable', null]) : null;
           const e = this.makeEnemy(def, a, uid++, elite, idx);
-          if (this.isWild) {
+          if (this.isWild || this.isTower) {
             e.maxHp = Math.round(e.maxHp * hpMult); e.hp = e.maxHp;
             e.armor += armorAdd;
             e.intentDamage = Math.round(e.intentDamage * dmgMult);
@@ -1291,21 +1399,28 @@
 
     onRoomCleared() {
       this.runStats.roomsCleared++;
+      // Playground: just rebuild the room (no progression, no rewards §13.5).
+      if (this.isPlayground) {
+        this.buildPlaygroundRoom();
+        return;
+      }
       this.courage = Math.min(this.maxCourage, this.courage + 25); // partial heal between rooms
+      // Tower checkpoint (§13.4): rest floors give a bigger heal.
+      if (this.isTower && this.isTowerCheckpoint(this.roomIndex + 1)) {
+        this.courage = Math.min(this.maxCourage, this.courage + 30);
+        PP_UI.toast('CHECKPOINT — rested');
+      }
       this.shield = Math.min(this.maxCourage * 0.3, this.shield + 8); // small shield carry-over
       this.buttons += 12;
-      // Boss room is the FINAL room (blueprint §11/§30). If next index is the last, build boss.
-      // Offer augment after non-boss rooms (§9).
-      if (this.roomIndex < this.totalRooms - 2) {
-        this.offerAugments();
-        this.setState(S.AUGMENT);
-      } else if (this.roomIndex === this.totalRooms - 2) {
-        // second-to-last room cleared: offer augment then proceed to boss room
-        this.offerAugments();
-        this.setState(S.AUGMENT);
-      } else {
+      // Run complete?
+      if (this.roomIndex >= this.totalRooms - 1) {
         this.onRunWon();
+        return;
       }
+      // Offer augment after each cleared room (§9). Tower & Wild Pocket progress normally;
+      // Journey's final room is a boss so we still offer augments before it.
+      this.offerAugments();
+      this.setState(S.AUGMENT);
     }
 
     offerAugments() {
@@ -1393,5 +1508,6 @@
   }
 
   global.PP_Game = { Game, States: S, Phases: PH,
-    dailySeed: Game.dailySeed, dailyCode: Game.dailyCode };
+    dailySeed: Game.dailySeed, dailyCode: Game.dailyCode,
+    weeklyTowerSeed: Game.weeklyTowerSeed };
 })(typeof window !== 'undefined' ? window : globalThis);

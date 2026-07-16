@@ -199,9 +199,10 @@ console.log('\n[5] Aim preview (§5.3)');
 console.log('\n[6] Augments & content (§9)');
 {
   const augs = PP_Content.AUGMENTS;
-  check('12 augments defined (Phase 0 scope)', augs.length === 12);
+  check('36 augments defined (full §9 set)', augs.length === 36);
   const fams = new Set(augs.map(a => a.family));
-  check('augments span Bounce/Buddy/Precision', fams.has('Bounce') && fams.has('Buddy') && fams.has('Precision'));
+  check('augments span all 6 families (§9)', fams.has('Bounce') && fams.has('Buddy') && fams.has('Precision') && fams.has('Element') && fams.has('Swarm') && fams.has('Courage'));
+  check('all augment ids unique', new Set(augs.map(a => a.id)).size === augs.length);
   check('3 Poplings defined (vertical-slice trio)', Object.keys(PP_Content.POPLINGS).length === 3);
   check('9 enemy families defined (5 base + 4 extended §10)', Object.keys(PP_Content.ENEMIES).length === 9);
   check('6 statuses defined (§8)', Object.keys(PP_Content.STATUSES).length === 6);

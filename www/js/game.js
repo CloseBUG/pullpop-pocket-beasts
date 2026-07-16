@@ -347,6 +347,20 @@
       this.activePoplingIdx = 0;
       this.roomBestCombo = 0;
       this.roomClearTime = 0;
+      this._lastLaughUsed = false; // reset per-room Last Laugh (§9)
+      // Party Crashers (§9 Swarm): entering a new room begins with two neutral bumpers.
+      if (this.hasAug && this.hasAug('party_crashers')) {
+        room.objects.push({
+          uid: 'pc0', kind: 'object', id: 'bumper',
+          x: a.x + a.w * 0.35, y: a.y + a.h * 0.4,
+          r: 20, bumper: true, restitution: 1.2, def: { color: '#ff7b9c', color2: '#ffc4d8' }, sx: 1, sy: 1, _hit: 0,
+        });
+        room.objects.push({
+          uid: 'pc1', kind: 'object', id: 'bumper',
+          x: a.x + a.w * 0.65, y: a.y + a.h * 0.4,
+          r: 20, bumper: true, restitution: 1.2, def: { color: '#ff7b9c', color2: '#ffc4d8' }, sx: 1, sy: 1, _hit: 0,
+        });
+      }
       this.room = room;
       this.computeIntents();
       this.phase = PH.AIM;
@@ -671,6 +685,8 @@
         }
         // No Brakes: damage up while above launch speed (applied on next enemy)
         ss.aboveLaunch = sp > ss.launchSpeed;
+        // Spicy Corners (§9 Element): wall hit primes Burn for the next enemy struck.
+        if (this.hasAug('spicy_corners')) ss.spicyCornersPrimed = true;
         // wall pop sound (timbre: triangle) — climb scale by combo
         PP_Audio.comboHit(ss.combo, 'wall');
         PP_Effects.burst(ev.point.x, ev.point.y, ev.nx, ev.ny, { count: 5, color: '#cfd6e6', speed: 200, size: 3, life: 0.25 });
@@ -847,6 +863,11 @@
       PP_Effects.hitStop(crit ? T.hitStopMax : T.hitStopMin);
       // Cinder passive: direct hit adds Burn
       if (ap.def.passiveId === 'ignite') this.applyStatus(e, 'burn', 1);
+      // Spicy Corners (§9): if a wall was hit before this enemy, apply Burn.
+      if (this.shotState && this.shotState.spicyCornersPrimed && this.hasAug('spicy_corners')) {
+        this.applyStatus(e, 'burn', 1);
+        this.shotState.spicyCornersPrimed = false;
+      }
       // Tether Twins: share damage with a linked twin within linkRadius (§10).
       if (e.id === 'tether' && e.hp > 0 && !e._tetherShared) {
         const linkR = e.def.linkRadius || 200;
@@ -903,6 +924,19 @@
     killEnemy(e, ap) {
       e.dead = true;
       this.runStats.enemiesDefeated++;
+      // Spotlight (§9 Element): defeating a Marked target marks the farthest enemy.
+      if (this.hasAug('spotlight') && e.statuses && e.statuses.mark) {
+        let farthest = null, maxD = 0;
+        for (const other of this.room.enemies) {
+          if (other.dead || other === e) continue;
+          const d = dist(other.x, other.y, e.x, e.y);
+          if (d > maxD) { maxD = d; farthest = other; }
+        }
+        if (farthest) {
+          this.applyStatus(farthest, 'mark', 1);
+          PP_Effects.floatText(farthest.x, farthest.y - farthest.r - 20, 'MARKED', { color: '#ff7b9c', size: 16 });
+        }
+      }
       // celebratory burst
       PP_Effects.burst(e.x, e.y, 0, -1, { count: 20, color: e.def.color2, speed: 420, size: 6, life: 0.6, kind: 'dot', spread: 2 });
       PP_Effects.ring(e.x, e.y, { color: e.def.color, radius: e.r, life: 0.4, width: 5 });
@@ -1207,6 +1241,11 @@
       // choose a ready popling as active
       const readyIdx = this.squad.findIndex((p) => p.state === 'ready');
       this.activePoplingIdx = readyIdx >= 0 ? readyIdx : 0;
+      // Brave Face (§9 Courage): below 30 Courage, gain shield at turn start.
+      if (this.hasAug('brave_face') && this.courage < 30 && this.courage > 0) {
+        this.shield = Math.min(this.maxCourage * 0.3, this.shield + 8);
+        PP_Effects.floatText(A.x + A.w / 2, A.y + 40, '+8 BRAVE', { color: '#7fc7ff', size: 16 });
+      }
       this.computeIntents();
 
       // check room clear
@@ -1236,6 +1275,15 @@
       }
       this._lastFailCause = cause;
       if (this.courage <= 0) {
+        // Last Laugh (§9 Courage/rare): once per room, lethal damage leaves 1 Courage.
+        if (this.hasAug('last_laugh') && !this._lastLaughUsed) {
+          this._lastLaughUsed = true;
+          this.courage = 1;
+          PP_Effects.floatText(A.x + A.w / 2, A.y + A.h / 2, 'LAST LAUGH!', { color: '#ffd166', size: 28, big: true, life: 1.2 });
+          PP_Effects.ring(A.x + A.w / 2, A.y + A.h / 2, { color: '#ffd166', radius: 120, life: 0.6, width: 8 });
+          PP_Effects.flash(0.4);
+          return;
+        }
         this.courage = 0;
         this.onRunLost();
       }
